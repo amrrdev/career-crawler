@@ -264,55 +264,24 @@ export class AntiDetectionManager {
       if (!browser || !browser.isConnected()) {
         console.log(`🚀 Launching new browser session for ${domain}`);
 
-        // Special arguments for Monster.com to bypass WAF
-        const baseArgs = [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
-          "--disable-gpu",
-          "--disable-features=VizDisplayCompositor",
-          "--disable-extensions",
-          "--disable-plugins",
-          "--disable-images", // Faster loading
-          "--user-agent=" + session.userAgent,
-        ];
-
-        const monsterArgs = domain.includes("monster")
-          ? [
-              ...baseArgs,
-              "--disable-blink-features=AutomationControlled",
-              "--disable-features=VizDisplayCompositor,VizServiceDisplay",
-              "--disable-ipc-flooding-protection",
-              "--disable-renderer-backgrounding",
-              "--disable-backgrounding-occluded-windows",
-              "--disable-client-side-phishing-detection",
-              "--disable-component-extensions-with-background-pages",
-              "--disable-default-apps",
-              "--disable-hang-monitor",
-              "--disable-popup-blocking",
-              "--disable-prompt-on-repost",
-              "--disable-sync",
-              "--disable-web-security",
-              "--metrics-recording-only",
-              "--no-default-browser-check",
-              "--no-first-run",
-              "--password-store=basic",
-              "--use-mock-keychain",
-              "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-              "--disable-webgl",
-              "--disable-threaded-scrolling",
-              "--disable-webgl2",
-              "--disable-software-rasterizer",
-            ]
-          : baseArgs;
-
         browser = await puppeteer.launch({
           headless: "new",
           defaultViewport: session.viewport,
-          args: monsterArgs,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+            "--disable-features=VizDisplayCompositor",
+            "--disable-extensions",
+            "--disable-plugins",
+            "--disable-images", // Faster loading
+            "--disable-javascript", // We don't need JS for scraping
+            "--user-agent=" + session.userAgent,
+          ],
         });
 
         session.browser = browser;
@@ -325,71 +294,29 @@ export class AntiDetectionManager {
       await page.setViewport(session.viewport);
       await page.setUserAgent(session.userAgent);
 
-      // Enhanced headers for Monster.com WAF bypass
-      const headers = domain.includes("monster")
-        ? {
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            Accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            DNT: "1",
-            Connection: "keep-alive",
-          }
-        : {
-            "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
-            "Accept-Encoding": "gzip, deflate, br",
-            Accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Cache-Control": "max-age=0",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-          };
+      // Set extra headers to look more realistic
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Cache-Control": "max-age=0",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+      });
 
-      await page.setExtraHTTPHeaders(headers);
-
-      // Enhanced request interception for Monster.com
-      if (domain.includes("monster")) {
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          const resourceType = req.resourceType();
-          const url = req.url();
-
-          // Allow more resources for Monster to appear more natural
-          if (["image", "font", "media"].includes(resourceType)) {
-            req.abort();
-          } else if (resourceType === "stylesheet" && !url.includes("monster.com")) {
-            req.abort();
-          } else {
-            // Add realistic headers to requests
-            const headers = req.headers();
-            headers["sec-ch-ua"] =
-              '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"';
-            headers["sec-ch-ua-mobile"] = "?0";
-            headers["sec-ch-ua-platform"] = '"Windows"';
-            req.continue({ headers });
-          }
-        });
-      } else {
-        // Standard blocking for other sites
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          const resourceType = req.resourceType();
-          if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
-            req.abort();
-          } else {
-            req.continue();
-          }
-        });
-      }
+      // Block unnecessary resources for faster scraping
+      await page.setRequestInterception(true);
+      page.on("request", (req) => {
+        const resourceType = req.resourceType();
+        if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
+          req.abort();
+        } else {
+          req.continue();
+        }
+      });
 
       // Add some randomness to look human
       const delay = this.getSmartDelay(domain);
@@ -438,66 +365,31 @@ export class AntiDetectionManager {
     }
   }
 
-  // Enhanced human-like behavior simulation
-  private async simulateHumanBehavior(page: Page, isMonster: boolean = false): Promise<void> {
+  // Simulate human-like behavior on the page
+  private async simulateHumanBehavior(page: Page): Promise<void> {
     try {
       // Random mouse movement
       const viewport = await page.viewport();
       if (viewport) {
-        // More mouse movements for Monster
-        const movements = isMonster ? 3 + Math.floor(Math.random() * 3) : 1;
-
-        for (let i = 0; i < movements; i++) {
-          const x = Math.random() * viewport.width;
-          const y = Math.random() * viewport.height;
-          await page.mouse.move(x, y, { steps: Math.floor(Math.random() * 10) + 1 });
-          await this.sleep(Math.random() * 500 + 200);
-        }
+        const x = Math.random() * viewport.width;
+        const y = Math.random() * viewport.height;
+        await page.mouse.move(x, y);
       }
 
-      // Random scroll with more natural patterns for Monster
-      if (Math.random() > 0.3) {
-        const scrolls = isMonster ? 2 + Math.floor(Math.random() * 3) : 1;
+      // Random scroll
+      if (Math.random() > 0.5) {
+        const scrollAmount = Math.random() * 500 + 100;
+        await page.evaluate((amount) => {
+          window.scrollBy(0, amount);
+        }, scrollAmount);
 
-        for (let i = 0; i < scrolls; i++) {
-          const scrollAmount = Math.random() * (isMonster ? 800 : 500) + 100;
-          await page.evaluate((amount) => {
-            window.scrollBy({
-              top: amount,
-              left: 0,
-              behavior: "smooth",
-            });
-          }, scrollAmount);
-
-          await this.sleep(Math.random() * (isMonster ? 2000 : 1000) + 500);
-        }
+        await this.sleep(Math.random() * 1000 + 500);
 
         // Scroll back up sometimes
-        if (Math.random() > 0.6) {
+        if (Math.random() > 0.7) {
           await page.evaluate(() => {
-            window.scrollTo({
-              top: 0,
-              left: 0,
-              behavior: "smooth",
-            });
+            window.scrollTo(0, 0);
           });
-          await this.sleep(Math.random() * 1500 + 500);
-        }
-      }
-
-      // For Monster, add some additional interactions
-      if (isMonster && Math.random() > 0.7) {
-        try {
-          // Try to click on a non-critical element
-          const elements = await page.$$("div, span, p");
-          if (elements.length > 0) {
-            const randomElement =
-              elements[Math.floor(Math.random() * Math.min(elements.length, 5))];
-            await randomElement.hover();
-            await this.sleep(Math.random() * 1000 + 300);
-          }
-        } catch (error) {
-          // Ignore interaction errors
         }
       }
     } catch (error) {

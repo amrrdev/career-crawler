@@ -3,7 +3,6 @@ import { BaseScraper } from "../scrapers/base-scraper";
 import { LinkedInScraper } from "../scrapers/linkedin-scraper";
 import { WuzzufScraper } from "../scrapers/wuzzuf-scraper";
 import { IndeedScraper } from "../scrapers/indeed-scraper";
-import { MonsterScraper } from "../scrapers/monster-scraper";
 import { Job, JobFilter, ScrapingResult } from "../types/job.types";
 
 export class JobAggregator {
@@ -12,12 +11,7 @@ export class JobAggregator {
 
   constructor(dbPath?: string, bypassCache: boolean = false) {
     this.database = new Database(dbPath);
-    this.scrapers = [
-      new LinkedInScraper(bypassCache),
-      new WuzzufScraper(),
-      new IndeedScraper(),
-      new MonsterScraper(),
-    ];
+    this.scrapers = [new LinkedInScraper(bypassCache), new WuzzufScraper(), new IndeedScraper()];
   }
 
   public async aggregateJobs(
