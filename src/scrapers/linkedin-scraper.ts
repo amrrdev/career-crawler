@@ -276,10 +276,6 @@ export class LinkedInScraper extends BaseScraper {
                         postedDate: postedDate,
                       });
 
-                      // Enhanced LinkedIn skill extraction
-                      const linkedinSkills = this.extractLinkedInSkills(title, description, term);
-                      jobData.skills = [...new Set([...jobData.skills, ...linkedinSkills])];
-
                       jobs.push(jobData);
                       console.log(`   ✅ Extracted: "${title}" at ${company}`);
                     } catch (error) {
@@ -365,87 +361,5 @@ export class LinkedInScraper extends BaseScraper {
     } catch {
       return null;
     }
-  }
-
-  private extractLinkedInSkills(title: string, description: string, searchTerm: string): string[] {
-    const skills: string[] = [];
-    const text = `${title} ${description} ${searchTerm}`.toLowerCase();
-
-    // LinkedIn-specific skill patterns
-    const skillPatterns = [
-      // Programming Languages
-      { regex: /javascript|js(?!\w)/g, skill: "JavaScript" },
-      { regex: /typescript|ts(?!\w)/g, skill: "TypeScript" },
-      { regex: /python/g, skill: "Python" },
-      { regex: /java(?!\w)/g, skill: "Java" },
-      { regex: /c#|csharp/g, skill: "C#" },
-      { regex: /php/g, skill: "PHP" },
-      { regex: /ruby/g, skill: "Ruby" },
-      { regex: /golang|go(?!\w)/g, skill: "Go" },
-      { regex: /swift/g, skill: "Swift" },
-      { regex: /kotlin/g, skill: "Kotlin" },
-
-      // Frontend Technologies
-      { regex: /react(?:\.?js)?/g, skill: "React" },
-      { regex: /vue(?:\.?js)?/g, skill: "Vue.js" },
-      { regex: /angular/g, skill: "Angular" },
-      { regex: /html5?/g, skill: "HTML" },
-      { regex: /css3?/g, skill: "CSS" },
-      { regex: /sass|scss/g, skill: "Sass" },
-      { regex: /bootstrap/g, skill: "Bootstrap" },
-      { regex: /tailwind/g, skill: "Tailwind CSS" },
-
-      // Backend Technologies
-      { regex: /node(?:\.?js)?/g, skill: "Node.js" },
-      { regex: /express(?:\.?js)?/g, skill: "Express" },
-      { regex: /django/g, skill: "Django" },
-      { regex: /flask/g, skill: "Flask" },
-      { regex: /laravel/g, skill: "Laravel" },
-      { regex: /spring/g, skill: "Spring" },
-      { regex: /\.net/g, skill: ".NET" },
-      { regex: /asp\.net/g, skill: "ASP.NET" },
-
-      // Databases
-      { regex: /postgresql|postgres/g, skill: "PostgreSQL" },
-      { regex: /mysql/g, skill: "MySQL" },
-      { regex: /mongodb|mongo/g, skill: "MongoDB" },
-      { regex: /redis/g, skill: "Redis" },
-      { regex: /elasticsearch/g, skill: "Elasticsearch" },
-      { regex: /sql server/g, skill: "SQL Server" },
-
-      // Cloud Platforms
-      { regex: /aws|amazon web services/g, skill: "AWS" },
-      { regex: /azure/g, skill: "Azure" },
-      { regex: /gcp|google cloud/g, skill: "Google Cloud" },
-      { regex: /firebase/g, skill: "Firebase" },
-
-      // DevOps & Tools
-      { regex: /docker/g, skill: "Docker" },
-      { regex: /kubernetes|k8s/g, skill: "Kubernetes" },
-      { regex: /jenkins/g, skill: "Jenkins" },
-      { regex: /gitlab/g, skill: "GitLab" },
-      { regex: /github/g, skill: "GitHub" },
-      { regex: /terraform/g, skill: "Terraform" },
-      { regex: /ansible/g, skill: "Ansible" },
-
-      // Other Important Skills
-      { regex: /git(?!\w)/g, skill: "Git" },
-      { regex: /agile/g, skill: "Agile" },
-      { regex: /scrum/g, skill: "Scrum" },
-      { regex: /rest api|restful/g, skill: "REST API" },
-      { regex: /graphql/g, skill: "GraphQL" },
-      { regex: /microservices/g, skill: "Microservices" },
-      { regex: /machine learning|ml/g, skill: "Machine Learning" },
-      { regex: /artificial intelligence|ai/g, skill: "AI" },
-      { regex: /data science/g, skill: "Data Science" },
-    ];
-
-    skillPatterns.forEach(({ regex, skill }) => {
-      if (regex.test(text)) {
-        skills.push(skill);
-      }
-    });
-
-    return skills;
   }
 }
