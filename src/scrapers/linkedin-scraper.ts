@@ -7,10 +7,12 @@ export class LinkedInScraper extends BaseScraper {
   protected sourceName = "LinkedIn";
   protected baseUrl = "https://www.linkedin.com";
   private antiDetection: AntiDetectionManager;
+  private bypassCache: boolean = false;
 
-  constructor() {
+  constructor(bypassCache: boolean = false) {
     super();
     this.antiDetection = new AntiDetectionManager();
+    this.bypassCache = bypassCache;
 
     // Clean up old sessions periodically
     setInterval(() => {
@@ -18,15 +20,22 @@ export class LinkedInScraper extends BaseScraper {
     }, 5 * 60 * 1000); // Every 5 minutes
   }
 
+  // Method to set cache bypass
+  public setBypassCache(bypass: boolean): void {
+    this.bypassCache = bypass;
+  }
+
   protected async fetchPage(url: string): Promise<string> {
     try {
       const domain = "linkedin.com";
 
-      // Check cache first
-      const cached = this.antiDetection.getCachedResponse(url);
-      if (cached) {
-        console.log(`Using cached response for ${url.substring(0, 100)}...`);
-        return cached;
+      // Check cache first (unless bypassing)
+      if (!this.bypassCache) {
+        const cached = this.antiDetection.getCachedResponse(url);
+        if (cached) {
+          console.log(`Using cached response for ${url.substring(0, 100)}...`);
+          return cached;
+        }
       }
 
       // Check if we can make request (rate limiting)
@@ -60,8 +69,10 @@ export class LinkedInScraper extends BaseScraper {
 
       const html = await response.text();
 
-      // Cache successful response
-      this.antiDetection.setCachedResponse(url, html);
+      // Cache successful response (unless bypassing)
+      if (!this.bypassCache) {
+        this.antiDetection.setCachedResponse(url, html);
+      }
 
       console.log(`✅ Successfully fetched LinkedIn page`);
       return html;
@@ -104,182 +115,201 @@ export class LinkedInScraper extends BaseScraper {
       ];
 
       let searchCount = 0;
-      const maxSearches = 4; // Conservative limit
+      const maxSearches = 8; // Increased limit for more variation
 
-      for (const term of searchTerms.slice(0, 2)) {
-        // Only 2 search terms
-        for (const loc of locations.slice(0, 2)) {
-          // Only 2 locations
-          if (searchCount >= maxSearches) break;
+      // Try multiple pages for each search to get more diverse results
+      for (const term of searchTerms.slice(0, 3)) {
+        // Use 3 search terms
+        for (const loc of locations.slice(0, 3)) {
+          // Use 3 locations
+          // Try multiple pages (0, 25, 50) for each search
+          for (let page = 0; page < 3; page++) {
+            const start = page * 25; // LinkedIn uses 25 results per page
 
-          try {
-            console.log(`🎯 Searching LinkedIn for: "${term}" in "${loc}"`);
+            if (searchCount >= maxSearches) break;
 
-            // LinkedIn public job search URL
-            const searchUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
-              term
-            )}&location=${encodeURIComponent(loc)}&f_TPR=r86400&f_JT=F&sortBy=DD&start=0`;
+            try {
+              console.log(`🎯 Searching LinkedIn for: "${term}" in "${loc}", page ${page + 1}`);
 
-            const html = await this.fetchPage(searchUrl);
-            const $ = cheerio.load(html);
+              // Add cache busting parameter and vary the time range
+              const cacheBuster = Date.now();
+              const timeRange = page === 0 ? "r86400" : page === 1 ? "r259200" : "r604800"; // Last 1, 3, or 7 days
 
-            // LinkedIn job card selectors (they change frequently)
-            const jobSelectors = [
-              ".job-search-card",
-              ".jobs-search__results-list li",
-              ".jobs-search-results__list-item",
-              ".job-result-card",
-              '[data-entity-urn*="jobPosting"]',
-              ".base-search-card",
-              ".base-card",
-            ];
+              // LinkedIn public job search URL with cache busting and varied parameters
+              const searchUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
+                term
+              )}&location=${encodeURIComponent(
+                loc
+              )}&f_TPR=${timeRange}&f_JT=F&sortBy=DD&start=${start}&_=${cacheBuster}`;
 
-            let foundJobs = false;
+              const html = await this.fetchPage(searchUrl);
+              const $ = cheerio.load(html);
 
-            for (const selector of jobSelectors) {
-              const jobElements = $(selector);
-              console.log(`   Trying selector "${selector}": found ${jobElements.length} elements`);
+              // LinkedIn job card selectors (they change frequently)
+              const jobSelectors = [
+                ".job-search-card",
+                ".jobs-search__results-list li",
+                ".jobs-search-results__list-item",
+                ".job-result-card",
+                '[data-entity-urn*="jobPosting"]',
+                ".base-search-card",
+                ".base-card",
+              ];
 
-              if (jobElements.length > 0) {
-                foundJobs = true;
+              let foundJobs = false;
 
-                jobElements.each((index, element) => {
-                  if (index >= 10) return false; // Limit per search
+              for (const selector of jobSelectors) {
+                const jobElements = $(selector);
+                console.log(
+                  `   Trying selector "${selector}": found ${jobElements.length} elements`
+                );
 
-                  try {
-                    const $job = $(element);
+                if (jobElements.length > 0) {
+                  foundJobs = true;
 
-                    // Extract job title
-                    const $titleLink = $job
-                      .find(
-                        'h3 a, .job-title a, [data-tracking-control-name="public_jobs_jserp-result_search-card"] h3 a, .base-search-card__title a'
-                      )
-                      .first();
-                    let title = $titleLink.text().trim();
-                    let jobUrl = $titleLink.attr("href");
+                  jobElements.each((index, element) => {
+                    if (index >= 15) return false; // Increased limit per search
 
-                    // Alternative title extraction
-                    if (!title) {
-                      title = $job
+                    try {
+                      const $job = $(element);
+
+                      // Extract job title
+                      const $titleLink = $job
                         .find(
-                          "h3, .job-title, .jobs-search-results__list-item h3, .base-search-card__title"
+                          'h3 a, .job-title a, [data-tracking-control-name="public_jobs_jserp-result_search-card"] h3 a, .base-search-card__title a'
+                        )
+                        .first();
+                      let title = $titleLink.text().trim();
+                      let jobUrl = $titleLink.attr("href");
+
+                      // Alternative title extraction
+                      if (!title) {
+                        title = $job
+                          .find(
+                            "h3, .job-title, .jobs-search-results__list-item h3, .base-search-card__title"
+                          )
+                          .first()
+                          .text()
+                          .trim();
+                      }
+
+                      if (!title || title.length < 5) return;
+
+                      // Clean and validate URL
+                      if (jobUrl && !jobUrl.startsWith("http")) {
+                        jobUrl = jobUrl.startsWith("/")
+                          ? `https://www.linkedin.com${jobUrl}`
+                          : `https://www.linkedin.com/jobs/${jobUrl}`;
+                      }
+                      if (!jobUrl) {
+                        jobUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
+                          title
+                        )}`;
+                      }
+
+                      // Extract company
+                      let company = $job
+                        .find(
+                          ".job-search-card__subtitle-link, .job-result-card__company-link, h4 a, .base-search-card__subtitle a"
                         )
                         .first()
                         .text()
                         .trim();
-                    }
+                      if (!company) {
+                        company = $job
+                          .find(
+                            'h4, .company-name, [data-tracking-control-name*="company"], .base-search-card__subtitle'
+                          )
+                          .first()
+                          .text()
+                          .trim();
+                      }
+                      if (!company) company = "LinkedIn Company";
 
-                    if (!title || title.length < 5) return;
-
-                    // Clean and validate URL
-                    if (jobUrl && !jobUrl.startsWith("http")) {
-                      jobUrl = jobUrl.startsWith("/")
-                        ? `https://www.linkedin.com${jobUrl}`
-                        : `https://www.linkedin.com/jobs/${jobUrl}`;
-                    }
-                    if (!jobUrl) {
-                      jobUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
-                        title
-                      )}`;
-                    }
-
-                    // Extract company
-                    let company = $job
-                      .find(
-                        ".job-search-card__subtitle-link, .job-result-card__company-link, h4 a, .base-search-card__subtitle a"
-                      )
-                      .first()
-                      .text()
-                      .trim();
-                    if (!company) {
-                      company = $job
+                      // Extract location
+                      let jobLocation = $job
                         .find(
-                          'h4, .company-name, [data-tracking-control-name*="company"], .base-search-card__subtitle'
+                          ".job-search-card__location, .job-result-card__location, .base-search-card__metadata"
                         )
                         .first()
                         .text()
                         .trim();
-                    }
-                    if (!company) company = "LinkedIn Company";
+                      if (!jobLocation) {
+                        jobLocation = $job
+                          .find('[class*="location"], .job-search-card__location')
+                          .first()
+                          .text()
+                          .trim();
+                      }
+                      if (!jobLocation) jobLocation = loc;
 
-                    // Extract location
-                    let jobLocation = $job
-                      .find(
-                        ".job-search-card__location, .job-result-card__location, .base-search-card__metadata"
-                      )
-                      .first()
-                      .text()
-                      .trim();
-                    if (!jobLocation) {
-                      jobLocation = $job
-                        .find('[class*="location"], .job-search-card__location')
+                      // Extract job description/summary
+                      let description = $job
+                        .find(
+                          ".job-search-card__snippet, .job-result-card__snippet, .base-search-card__info"
+                        )
                         .first()
                         .text()
                         .trim();
+                      if (!description) {
+                        description = `${title} position at ${company} in ${jobLocation}. Apply on LinkedIn for full details.`;
+                      }
+
+                      // Extract posting date
+                      const dateElement = $job
+                        .find(
+                          "time, .job-search-card__listdate, [datetime], .base-search-card__metadata-item"
+                        )
+                        .first();
+                      let postedDate = new Date();
+                      if (dateElement.length) {
+                        const datetime = dateElement.attr("datetime") || dateElement.text();
+                        postedDate = this.parseLinkedInDate(datetime) || new Date();
+                      }
+
+                      const jobData = this.createJob({
+                        title: this.cleanText(title),
+                        company: this.cleanText(company),
+                        location: this.cleanText(jobLocation),
+                        description: this.cleanText(description),
+                        url: jobUrl,
+                        postedDate: postedDate,
+                      });
+
+                      // Enhanced LinkedIn skill extraction
+                      const linkedinSkills = this.extractLinkedInSkills(title, description, term);
+                      jobData.skills = [...new Set([...jobData.skills, ...linkedinSkills])];
+
+                      jobs.push(jobData);
+                      console.log(`   ✅ Extracted: "${title}" at ${company}`);
+                    } catch (error) {
+                      console.error("Error processing LinkedIn job:", error);
                     }
-                    if (!jobLocation) jobLocation = loc;
+                  });
 
-                    // Extract job description/summary
-                    let description = $job
-                      .find(
-                        ".job-search-card__snippet, .job-result-card__snippet, .base-search-card__info"
-                      )
-                      .first()
-                      .text()
-                      .trim();
-                    if (!description) {
-                      description = `${title} position at ${company} in ${jobLocation}. Apply on LinkedIn for full details.`;
-                    }
-
-                    // Extract posting date
-                    const dateElement = $job
-                      .find(
-                        "time, .job-search-card__listdate, [datetime], .base-search-card__metadata-item"
-                      )
-                      .first();
-                    let postedDate = new Date();
-                    if (dateElement.length) {
-                      const datetime = dateElement.attr("datetime") || dateElement.text();
-                      postedDate = this.parseLinkedInDate(datetime) || new Date();
-                    }
-
-                    const jobData = this.createJob({
-                      title: this.cleanText(title),
-                      company: this.cleanText(company),
-                      location: this.cleanText(jobLocation),
-                      description: this.cleanText(description),
-                      url: jobUrl,
-                      postedDate: postedDate,
-                    });
-
-                    // Enhanced LinkedIn skill extraction
-                    const linkedinSkills = this.extractLinkedInSkills(title, description, term);
-                    jobData.skills = [...new Set([...jobData.skills, ...linkedinSkills])];
-
-                    jobs.push(jobData);
-                    console.log(`   ✅ Extracted: "${title}" at ${company}`);
-                  } catch (error) {
-                    console.error("Error processing LinkedIn job:", error);
-                  }
-                });
-
-                break; // Found jobs with this selector
+                  break; // Found jobs with this selector
+                }
               }
+
+              if (!foundJobs) {
+                console.log(`   ❌ No jobs found with any selector for: ${term} in ${loc}`);
+              }
+
+              searchCount++;
+
+              // Smart delay between searches
+              const smartDelay = this.antiDetection.getSmartDelay("linkedin.com");
+              console.log(`   ⏱️  Smart delay: ${smartDelay}ms before next search`);
+              await this.sleep(smartDelay);
+            } catch (error) {
+              console.error(
+                `❌ Error searching LinkedIn for ${term} in ${loc}, page ${page + 1}:`,
+                error
+              );
             }
-
-            if (!foundJobs) {
-              console.log(`   ❌ No jobs found with any selector for: ${term} in ${loc}`);
-            }
-
-            searchCount++;
-
-            // Smart delay between searches
-            const smartDelay = this.antiDetection.getSmartDelay("linkedin.com");
-            console.log(`   ⏱️  Smart delay: ${smartDelay}ms before next search`);
-            await this.sleep(smartDelay);
-          } catch (error) {
-            console.error(`❌ Error searching LinkedIn for ${term} in ${loc}:`, error);
           }
+
+          if (searchCount >= maxSearches) break;
         }
 
         if (searchCount >= maxSearches) break;

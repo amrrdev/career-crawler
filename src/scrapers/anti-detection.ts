@@ -1,3 +1,5 @@
+import puppeteer, { Browser, Page } from "puppeteer";
+
 export interface ProxyConfig {
   host: string;
   port: number;
@@ -11,6 +13,8 @@ export interface ScrapingSession {
   lastUsed: Date;
   requestCount: number;
   blocked: boolean;
+  browser?: Browser;
+  viewport: { width: number; height: number };
 }
 
 export class AntiDetectionManager {
@@ -18,10 +22,10 @@ export class AntiDetectionManager {
   private proxies: ProxyConfig[] = [];
   private requestCache: Map<string, { data: string; timestamp: Date }> = new Map();
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-  private readonly MAX_REQUESTS_PER_SESSION = 50;
+  private readonly MAX_REQUESTS_PER_SESSION = 25; // Reduced for browser sessions
   private readonly SESSION_COOLDOWN = 30 * 60 * 1000; // 30 minutes
 
-  // Realistic user agents from different browsers and OS
+  // Realistic user agents and viewports from different browsers and OS
   private userAgents = [
     // Chrome Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -47,6 +51,17 @@ export class AntiDetectionManager {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
   ];
 
+  // Common desktop screen resolutions for realistic viewport sizes
+  private viewportSizes = [
+    { width: 1920, height: 1080 },
+    { width: 1366, height: 768 },
+    { width: 1440, height: 900 },
+    { width: 1536, height: 864 },
+    { width: 1280, height: 720 },
+    { width: 1600, height: 900 },
+    { width: 1024, height: 768 },
+  ];
+
   constructor(proxies: ProxyConfig[] = []) {
     this.proxies = proxies;
   }
@@ -67,6 +82,7 @@ export class AntiDetectionManager {
         lastUsed: new Date(),
         requestCount: 0,
         blocked: false,
+        viewport: this.getRandomViewport(),
       };
 
       this.sessions.set(domain, session);
@@ -191,12 +207,20 @@ export class AntiDetectionManager {
   }
 
   // Clean up old sessions and cache
-  public cleanup(): void {
+  public async cleanup(): Promise<void> {
     const now = Date.now();
 
     // Clean old sessions
     for (const [domain, session] of this.sessions.entries()) {
       if (now - session.lastUsed.getTime() > this.SESSION_COOLDOWN * 2) {
+        // Close browser if exists
+        if (session.browser) {
+          try {
+            await session.browser.close();
+          } catch (error) {
+            console.error("Error closing browser:", error);
+          }
+        }
         this.sessions.delete(domain);
       }
     }
@@ -223,5 +247,170 @@ export class AntiDetectionManager {
     // Check if enough time has passed since last request
     const timeSinceLastRequest = Date.now() - session.lastUsed.getTime();
     return timeSinceLastRequest >= this.getSmartDelay(domain) / 2;
+  }
+
+  public getRandomViewport(): { width: number; height: number } {
+    return this.viewportSizes[Math.floor(Math.random() * this.viewportSizes.length)];
+  }
+
+  // Enhanced browser-based page fetching
+  public async fetchPageWithBrowser(url: string, domain: string): Promise<string> {
+    const session = this.getSession(domain);
+    let browser = session.browser;
+    let page: Page;
+
+    try {
+      // Create browser if not exists
+      if (!browser || !browser.isConnected()) {
+        console.log(`🚀 Launching new browser session for ${domain}`);
+        browser = await puppeteer.launch({
+          headless: "new",
+          defaultViewport: session.viewport,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+            "--disable-features=VizDisplayCompositor",
+            "--disable-extensions",
+            "--disable-plugins",
+            "--disable-images", // Faster loading
+            "--disable-javascript", // We don't need JS for scraping
+            "--user-agent=" + session.userAgent,
+          ],
+        });
+
+        session.browser = browser;
+        this.sessions.set(domain, session);
+      }
+
+      page = await browser.newPage();
+
+      // Set realistic properties
+      await page.setViewport(session.viewport);
+      await page.setUserAgent(session.userAgent);
+
+      // Set extra headers to look more realistic
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Cache-Control": "max-age=0",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+      });
+
+      // Block unnecessary resources for faster scraping
+      await page.setRequestInterception(true);
+      page.on("request", (req) => {
+        const resourceType = req.resourceType();
+        if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
+          req.abort();
+        } else {
+          req.continue();
+        }
+      });
+
+      // Add some randomness to look human
+      const delay = this.getSmartDelay(domain);
+      console.log(`⏱️  Human-like delay: ${delay}ms for ${domain}`);
+
+      // Navigate to page with timeout
+      await page.goto(url, {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+
+      // Random small delay to simulate reading
+      await this.sleep(Math.random() * 2000 + 1000);
+
+      // Simulate some human behavior
+      await this.simulateHumanBehavior(page);
+
+      // Get the HTML content
+      const html = await page.content();
+
+      // Update session
+      this.updateSession(domain, [], false);
+
+      await page.close();
+      return html;
+    } catch (error) {
+      console.error(`❌ Browser fetch error for ${domain}:`, error);
+
+      // Clean up page if it exists
+      try {
+        if (page!) await page.close();
+      } catch {}
+
+      // Mark session as potentially blocked if it's a navigation error
+      if (
+        error instanceof Error &&
+        (error.message.includes("net::ERR_") ||
+          error.message.includes("TimeoutError") ||
+          error.message.includes("403") ||
+          error.message.includes("blocked"))
+      ) {
+        this.updateSession(domain, [], true);
+      }
+
+      throw error;
+    }
+  }
+
+  // Simulate human-like behavior on the page
+  private async simulateHumanBehavior(page: Page): Promise<void> {
+    try {
+      // Random mouse movement
+      const viewport = await page.viewport();
+      if (viewport) {
+        const x = Math.random() * viewport.width;
+        const y = Math.random() * viewport.height;
+        await page.mouse.move(x, y);
+      }
+
+      // Random scroll
+      if (Math.random() > 0.5) {
+        const scrollAmount = Math.random() * 500 + 100;
+        await page.evaluate((amount) => {
+          window.scrollBy(0, amount);
+        }, scrollAmount);
+
+        await this.sleep(Math.random() * 1000 + 500);
+
+        // Scroll back up sometimes
+        if (Math.random() > 0.7) {
+          await page.evaluate(() => {
+            window.scrollTo(0, 0);
+          });
+        }
+      }
+    } catch (error) {
+      // Ignore errors in human simulation
+    }
+  }
+
+  // Helper method for delays
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Close all browsers when shutting down
+  public async closeAllBrowsers(): Promise<void> {
+    for (const [domain, session] of this.sessions.entries()) {
+      if (session.browser) {
+        try {
+          await session.browser.close();
+        } catch (error) {
+          console.error(`Error closing browser for ${domain}:`, error);
+        }
+      }
+    }
   }
 }

@@ -9,11 +9,11 @@ export class JobApiServer {
   private scheduler: JobScheduler;
   private port: number;
 
-  constructor(port: number = 3000) {
+  constructor(port: number = 3000, bypassCache: boolean = false) {
     this.app = express();
     this.port = port;
-    this.aggregator = new JobAggregator();
-    this.scheduler = new JobScheduler();
+    this.aggregator = new JobAggregator(undefined, bypassCache);
+    this.scheduler = new JobScheduler(bypassCache);
 
     this.setupMiddleware();
     this.setupRoutes();

@@ -5,8 +5,8 @@ export class JobScheduler {
   private aggregator: JobAggregator;
   private job: CronJob | null = null;
 
-  constructor() {
-    this.aggregator = new JobAggregator();
+  constructor(bypassCache: boolean = false) {
+    this.aggregator = new JobAggregator(undefined, bypassCache);
   }
 
   public start(): void {

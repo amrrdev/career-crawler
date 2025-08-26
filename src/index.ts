@@ -5,7 +5,8 @@ async function main() {
   console.log("==================================");
 
   const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-  const server = new JobApiServer(port);
+  const bypassCache = process.env.BYPASS_CACHE === 'true';
+  const server = new JobApiServer(port, bypassCache);
 
   // Handle graceful shutdown
   process.on("SIGINT", () => {
@@ -25,6 +26,7 @@ async function main() {
     console.log("==================================");
     console.log("Job Posting Aggregator is running!");
     console.log("==================================");
+    console.log(`Bypass cache: ${bypassCache ? 'enabled' : 'disabled'}`);
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
