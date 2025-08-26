@@ -44,346 +44,353 @@ export abstract class BaseScraper {
 
   protected extractSkillsFromText(text: string): string[] {
     const skills: Set<string> = new Set();
-    const cleanText = text.toLowerCase().replace(/[^\w\s\.\+#-]/g, ' ');
+    const cleanText = text.toLowerCase().replace(/[^\w\s\.\+#-]/g, " ");
 
     // Comprehensive skill detection with multiple variations and synonyms
     const skillPatterns = [
       // Programming Languages with extensive variations
       {
         patterns: [/\bjavascript\b/, /\bjs\b(?!\w)/, /\bvanilla\s*js\b/, /\bec?ma?script\b/],
-        skill: "JavaScript"
+        skill: "JavaScript",
       },
       {
         patterns: [/\btypescript\b/, /\bts\b(?!\w)/, /\btype\s*script\b/],
-        skill: "TypeScript"
+        skill: "TypeScript",
       },
       {
         patterns: [/\bpython\b/, /\bpython3?\b/, /\bpy\b(?!\w)/],
-        skill: "Python"
+        skill: "Python",
       },
       {
         patterns: [/\bjava\b(?!\s*script)/, /\bjava\s*se\b/, /\bjava\s*ee\b/, /\bjdk\b/, /\bjre\b/],
-        skill: "Java"
+        skill: "Java",
       },
       {
         patterns: [/\bc#\b/, /\bcsharp\b/, /\bc-sharp\b/, /\bdotnet\b/, /\b\.net\b/],
-        skill: "C#"
+        skill: "C#",
       },
       {
         patterns: [/\bc\+\+\b/, /\bcplusplus\b/, /\bcpp\b/],
-        skill: "C++"
+        skill: "C++",
       },
       {
         patterns: [/\bphp\b/, /\bphp\d+\b/],
-        skill: "PHP"
+        skill: "PHP",
       },
       {
         patterns: [/\bruby\b(?!\s*on\s*rails)/, /\brb\b/],
-        skill: "Ruby"
+        skill: "Ruby",
       },
       {
         patterns: [/\bgolang\b/, /\bgo\s+(lang|programming|language|developer|dev)\b/],
-        skill: "Go"
+        skill: "Go",
       },
       {
         patterns: [/\brust\b(?!\s)/, /\brust\s+(lang|programming|language)\b/],
-        skill: "Rust"
+        skill: "Rust",
       },
       {
         patterns: [/\bswift\b/, /\bswift\s*ui\b/, /\bios\s*swift\b/],
-        skill: "Swift"
+        skill: "Swift",
       },
       {
         patterns: [/\bkotlin\b/, /\bkotlin\s*native\b/],
-        skill: "Kotlin"
+        skill: "Kotlin",
       },
       {
         patterns: [/\bscala\b/],
-        skill: "Scala"
+        skill: "Scala",
       },
 
       // Frontend Technologies with comprehensive coverage
       {
         patterns: [/\breact\b/, /\breactjs\b/, /\breact\.js\b/, /\breact\s*native\b/],
-        skill: "React"
+        skill: "React",
       },
       {
         patterns: [/\bangular\b/, /\bangularjs\b/, /\bangular\s*\d+\b/],
-        skill: "Angular"
+        skill: "Angular",
       },
       {
         patterns: [/\bvue\b/, /\bvuejs\b/, /\bvue\.js\b/, /\bnuxt\b/],
-        skill: "Vue.js"
+        skill: "Vue.js",
       },
       {
         patterns: [/\bhtml\b/, /\bhtml5\b/, /\bmarkup\b/],
-        skill: "HTML"
+        skill: "HTML",
       },
       {
         patterns: [/\bcss\b/, /\bcss3\b/, /\bstylesheet\b/, /\bstyling\b/],
-        skill: "CSS"
+        skill: "CSS",
       },
       {
         patterns: [/\bsass\b/, /\bscss\b/, /\bless\b/, /\bstylus\b/],
-        skill: "Sass"
+        skill: "Sass",
       },
       {
         patterns: [/\bbootstrap\b/, /\bbs\d+\b/],
-        skill: "Bootstrap"
+        skill: "Bootstrap",
       },
       {
         patterns: [/\btailwind\b/, /\btailwindcss\b/, /\btailwind\s*css\b/],
-        skill: "Tailwind CSS"
+        skill: "Tailwind CSS",
       },
       {
         patterns: [/\bmaterial\s*ui\b/, /\bmui\b/, /\bmaterial\s*design\b/],
-        skill: "Material-UI"
+        skill: "Material-UI",
       },
       {
         patterns: [/\bredux\b/, /\bredux\s*toolkit\b/, /\brtk\b/],
-        skill: "Redux"
+        skill: "Redux",
       },
       {
         patterns: [/\bjquery\b/, /\bjq\b/],
-        skill: "jQuery"
+        skill: "jQuery",
       },
       {
         patterns: [/\bwebpack\b/, /\bvite\b/, /\bparcel\b/, /\brollup\b/],
-        skill: "Build Tools"
+        skill: "Build Tools",
       },
 
       // Backend Technologies
       {
         patterns: [/\bnode\b/, /\bnodejs\b/, /\bnode\.js\b/, /\bserver\s*side\s*js\b/],
-        skill: "Node.js"
+        skill: "Node.js",
       },
       {
         patterns: [/\bexpress\b/, /\bexpressjs\b/, /\bexpress\.js\b/],
-        skill: "Express"
+        skill: "Express",
       },
       {
         patterns: [/\bdjango\b/, /\bdjango\s*rest\b/, /\bdrf\b/],
-        skill: "Django"
+        skill: "Django",
       },
       {
         patterns: [/\bflask\b/, /\bflask\s*api\b/],
-        skill: "Flask"
+        skill: "Flask",
       },
       {
         patterns: [/\blaravel\b/, /\bphp\s*laravel\b/],
-        skill: "Laravel"
+        skill: "Laravel",
       },
       {
         patterns: [/\bspring\b/, /\bspring\s*boot\b/, /\bspring\s*framework\b/],
-        skill: "Spring"
+        skill: "Spring",
       },
       {
         patterns: [/\bruby\s*on\s*rails\b/, /\brails\b/, /\bror\b/],
-        skill: "Ruby on Rails"
+        skill: "Ruby on Rails",
       },
       {
         patterns: [/\basp\.net\b/, /\baspnet\b/],
-        skill: "ASP.NET"
+        skill: "ASP.NET",
       },
       {
         patterns: [/\bfastapi\b/, /\bfast\s*api\b/],
-        skill: "FastAPI"
+        skill: "FastAPI",
       },
       {
         patterns: [/\bnestjs\b/, /\bnest\.js\b/, /\bnest\s*framework\b/],
-        skill: "NestJS"
+        skill: "NestJS",
       },
 
       // Databases with comprehensive coverage
       {
         patterns: [/\bmysql\b/, /\bmy\s*sql\b/, /\bmariadb\b/],
-        skill: "MySQL"
+        skill: "MySQL",
       },
       {
         patterns: [/\bpostgresql\b/, /\bpostgres\b/, /\bpsql\b/],
-        skill: "PostgreSQL"
+        skill: "PostgreSQL",
       },
       {
         patterns: [/\bmongodb\b/, /\bmongo\b/, /\bnosql\b/],
-        skill: "MongoDB"
+        skill: "MongoDB",
       },
       {
         patterns: [/\bredis\b/, /\bcaching\b/, /\bmemcached\b/],
-        skill: "Redis"
+        skill: "Redis",
       },
       {
         patterns: [/\belasticsearch\b/, /\belastic\b/, /\bes\b/, /\belk\b/],
-        skill: "Elasticsearch"
+        skill: "Elasticsearch",
       },
       {
         patterns: [/\bsqlite\b/, /\bsql\s*lite\b/],
-        skill: "SQLite"
+        skill: "SQLite",
       },
       {
         patterns: [/\boracle\b/, /\boracle\s*db\b/],
-        skill: "Oracle"
+        skill: "Oracle",
       },
       {
         patterns: [/\bsql\s*server\b/, /\bmssql\b/, /\bmicrosoft\s*sql\b/],
-        skill: "SQL Server"
+        skill: "SQL Server",
       },
       {
         patterns: [/\bdynamodb\b/, /\bdynamo\s*db\b/],
-        skill: "DynamoDB"
+        skill: "DynamoDB",
       },
       {
         patterns: [/\bcassandra\b/, /\bcql\b/],
-        skill: "Cassandra"
+        skill: "Cassandra",
       },
 
       // Cloud Platforms
       {
-        patterns: [/\baws\b/, /\bamazon\s*web\s*services\b/, /\bec2\b/, /\bs3\b/, /\blambda\b/, /\brds\b/],
-        skill: "AWS"
+        patterns: [
+          /\baws\b/,
+          /\bamazon\s*web\s*services\b/,
+          /\bec2\b/,
+          /\bs3\b/,
+          /\blambda\b/,
+          /\brds\b/,
+        ],
+        skill: "AWS",
       },
       {
         patterns: [/\bazure\b/, /\bmicrosoft\s*azure\b/, /\bazure\s*cloud\b/],
-        skill: "Azure"
+        skill: "Azure",
       },
       {
         patterns: [/\bgcp\b/, /\bgoogle\s*cloud\b/, /\bgce\b/, /\bgke\b/],
-        skill: "Google Cloud"
+        skill: "Google Cloud",
       },
       {
         patterns: [/\bfirebase\b/, /\bfirestore\b/],
-        skill: "Firebase"
+        skill: "Firebase",
       },
       {
         patterns: [/\bheroku\b/, /\bdigital\s*ocean\b/, /\blinode\b/],
-        skill: "Cloud Hosting"
+        skill: "Cloud Hosting",
       },
 
       // DevOps & Tools
       {
         patterns: [/\bdocker\b/, /\bcontainerization\b/, /\bcontainer\b/],
-        skill: "Docker"
+        skill: "Docker",
       },
       {
         patterns: [/\bkubernetes\b/, /\bk8s\b/, /\borchestration\b/],
-        skill: "Kubernetes"
+        skill: "Kubernetes",
       },
       {
         patterns: [/\bjenkins\b/, /\bci\s*cd\b/, /\bcontinuous\s*integration\b/],
-        skill: "CI/CD"
+        skill: "CI/CD",
       },
       {
         patterns: [/\bgitlab\b/, /\bgitlab\s*ci\b/],
-        skill: "GitLab"
+        skill: "GitLab",
       },
       {
         patterns: [/\bgithub\b/, /\bgithub\s*actions\b/],
-        skill: "GitHub"
+        skill: "GitHub",
       },
       {
         patterns: [/\bterraform\b/, /\binfrastructure\s*as\s*code\b/, /\biac\b/],
-        skill: "Terraform"
+        skill: "Terraform",
       },
       {
         patterns: [/\bansible\b/, /\bplaybook\b/],
-        skill: "Ansible"
+        skill: "Ansible",
       },
       {
         patterns: [/\bgit\b/, /\bversion\s*control\b/, /\bvcs\b/],
-        skill: "Git"
+        skill: "Git",
       },
 
       // Mobile Development
       {
         patterns: [/\breact\s*native\b/, /\brnative\b/],
-        skill: "React Native"
+        skill: "React Native",
       },
       {
         patterns: [/\bflutter\b/, /\bdart\b/],
-        skill: "Flutter"
+        skill: "Flutter",
       },
       {
         patterns: [/\bios\b/, /\bxcode\b/, /\bswiftui\b/],
-        skill: "iOS Development"
+        skill: "iOS Development",
       },
       {
         patterns: [/\bandroid\b/, /\bandroid\s*studio\b/, /\bjetpack\b/],
-        skill: "Android Development"
+        skill: "Android Development",
       },
 
       // Testing
       {
         patterns: [/\bjest\b/, /\bmocha\b/, /\bchai\b/, /\bunit\s*test\b/],
-        skill: "Testing"
+        skill: "Testing",
       },
       {
         patterns: [/\bcypress\b/, /\bselenium\b/, /\be2e\b/, /\bintegration\s*test\b/],
-        skill: "E2E Testing"
+        skill: "E2E Testing",
       },
 
       // API & Architecture
       {
         patterns: [/\brest\b/, /\brestful\b/, /\brest\s*api\b/],
-        skill: "REST API"
+        skill: "REST API",
       },
       {
         patterns: [/\bgraphql\b/, /\bapollo\b/],
-        skill: "GraphQL"
+        skill: "GraphQL",
       },
       {
         patterns: [/\bmicroservices\b/, /\bmicroservice\b/, /\bservice\s*oriented\b/],
-        skill: "Microservices"
+        skill: "Microservices",
       },
       {
         patterns: [/\bapi\b/, /\bwebservice\b/, /\bweb\s*service\b/],
-        skill: "API Development"
+        skill: "API Development",
       },
 
       // Methodologies
       {
         patterns: [/\bagile\b/, /\bscrum\b/, /\bkanban\b/],
-        skill: "Agile"
+        skill: "Agile",
       },
       {
         patterns: [/\bdevops\b/, /\bsre\b/, /\bsite\s*reliability\b/],
-        skill: "DevOps"
+        skill: "DevOps",
       },
 
       // Data & Analytics
       {
         patterns: [/\bmachine\s*learning\b/, /\bml\b/, /\bai\b/, /\bartificial\s*intelligence\b/],
-        skill: "Machine Learning"
+        skill: "Machine Learning",
       },
       {
         patterns: [/\bdata\s*science\b/, /\bdata\s*analysis\b/, /\banalytics\b/],
-        skill: "Data Science"
+        skill: "Data Science",
       },
       {
         patterns: [/\bbig\s*data\b/, /\bhadoop\b/, /\bspark\b/],
-        skill: "Big Data"
+        skill: "Big Data",
       },
 
       // Specific Job Role Keywords that indicate skills
       {
         patterns: [/\bfrontend\b/, /\bfront-end\b/, /\bfront\s*end\b/],
-        skill: "Frontend Development"
+        skill: "Frontend Development",
       },
       {
         patterns: [/\bbackend\b/, /\bback-end\b/, /\bback\s*end\b/],
-        skill: "Backend Development"
+        skill: "Backend Development",
       },
       {
         patterns: [/\bfullstack\b/, /\bfull-stack\b/, /\bfull\s*stack\b/],
-        skill: "Full Stack Development"
+        skill: "Full Stack Development",
       },
       {
         patterns: [/\bmobile\s*dev\b/, /\bmobile\s*app\b/, /\bapp\s*development\b/],
-        skill: "Mobile Development"
-      }
+        skill: "Mobile Development",
+      },
     ];
 
     // Check each skill pattern
     skillPatterns.forEach(({ patterns, skill }) => {
-      const hasSkill = patterns.some(pattern => pattern.test(cleanText));
+      const hasSkill = patterns.some((pattern) => pattern.test(cleanText));
       if (hasSkill) {
         skills.add(skill);
       }
@@ -436,10 +443,10 @@ export abstract class BaseScraper {
     const titleSkills = this.extractSkillsFromText(data.title);
     const descriptionSkills = this.extractSkillsFromText(data.description);
     const companySkills = this.extractSkillsFromText(data.company);
-    
+
     // Combine all skills and remove duplicates
     const allSkills = [...new Set([...titleSkills, ...descriptionSkills, ...companySkills])];
-    
+
     const jobType = this.determineJobType(`${data.title} ${data.description}`);
 
     const job: Job = {

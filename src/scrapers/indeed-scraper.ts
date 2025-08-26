@@ -37,7 +37,7 @@ export class IndeedScraper extends BaseScraper {
       }
 
       console.log(`🌐 Fetching Indeed with browser: ${url.substring(0, 100)}...`);
-      
+
       // Use the enhanced browser-based fetching
       const html = await this.antiDetection.fetchPageWithBrowser(url, domain);
 
@@ -48,13 +48,13 @@ export class IndeedScraper extends BaseScraper {
       return html;
     } catch (error) {
       console.error(`❌ Failed to fetch Indeed page:`, error);
-      
+
       // Try fallback method if browser fails
-      if (error instanceof Error && error.message.includes('browser')) {
+      if (error instanceof Error && error.message.includes("browser")) {
         console.log(`🔄 Trying fallback fetch method for Indeed...`);
         return await this.fallbackFetch(url);
       }
-      
+
       this.antiDetection.updateSession("indeed.com", [], true);
       throw error;
     }
@@ -63,7 +63,7 @@ export class IndeedScraper extends BaseScraper {
   // Fallback method using regular fetch with enhanced headers
   private async fallbackFetch(url: string): Promise<string> {
     const domain = "indeed.com";
-    
+
     try {
       // Smart delay based on activity
       const smartDelay = this.antiDetection.getSmartDelay(domain);
@@ -72,15 +72,15 @@ export class IndeedScraper extends BaseScraper {
 
       // Get realistic headers
       const headers = this.antiDetection.getRealisticHeaders(domain);
-      
+
       // Add some additional stealth headers
-      headers['DNT'] = '1';
-      headers['Pragma'] = 'no-cache';
-      headers['Sec-Fetch-User'] = '?1';
-      
+      headers["DNT"] = "1";
+      headers["Pragma"] = "no-cache";
+      headers["Sec-Fetch-User"] = "?1";
+
       const response = await fetch(url, {
         headers,
-        redirect: 'follow'
+        redirect: "follow",
       });
 
       if (!response.ok) {
@@ -117,27 +117,46 @@ export class IndeedScraper extends BaseScraper {
         "node.js developer",
         "devops engineer",
         "data scientist",
+        "mobile developer",
+        "cloud engineer",
       ];
 
-      // Locations to search
+      // Global locations to search
       const locations = [
-        "Egypt",
         "Remote",
         "United States",
         "United Kingdom",
         "Canada",
         "Germany",
-        "Dubai",
+        "Australia",
+        "Netherlands",
+        "France",
+        "Switzerland",
+        "Sweden",
+        "Singapore",
+        "Dubai, UAE",
         "Saudi Arabia",
+        "Egypt",
+        "India",
+        "Ireland",
+        "Spain",
+        "Italy",
+        "Poland",
+        "Brazil",
+        "Japan",
       ];
 
-      let searchCount = 0;
-      const maxSearches = 6; // Slightly increased since we're using browser
+      // Shuffle for global diversity
+      const shuffledLocations = locations.sort(() => Math.random() - 0.5);
+      const shuffledTerms = searchTerms.sort(() => Math.random() - 0.5);
 
-      for (const term of searchTerms.slice(0, 3)) {
-        // Increased to 3 search terms
-        for (const loc of locations.slice(0, 2)) {
-          // Keep 2 locations
+      let searchCount = 0;
+      const maxSearches = 8; // Increased for global coverage
+
+      for (const term of shuffledTerms.slice(0, 4)) {
+        // Use 4 search terms
+        for (const loc of shuffledLocations.slice(0, 2)) {
+          // Use 2 random locations each time
           if (searchCount >= maxSearches) break;
 
           try {
@@ -167,7 +186,9 @@ export class IndeedScraper extends BaseScraper {
 
             for (const selector of jobSelectors) {
               const jobElements = $(selector);
-              console.log(`   🔍 Trying selector "${selector}": found ${jobElements.length} elements`);
+              console.log(
+                `   🔍 Trying selector "${selector}": found ${jobElements.length} elements`
+              );
 
               if (jobElements.length > 0) {
                 foundJobs = true;
@@ -179,19 +200,27 @@ export class IndeedScraper extends BaseScraper {
                     const $job = $(element);
 
                     // Enhanced job title extraction
-                    let $titleLink = $job.find('h2 a, .jobTitle a, .job-title a, [data-testid="jobTitle"] a').first();
-                    
+                    let $titleLink = $job
+                      .find('h2 a, .jobTitle a, .job-title a, [data-testid="jobTitle"] a')
+                      .first();
+
                     // Try alternative selectors if not found
                     if ($titleLink.length === 0) {
-                      $titleLink = $job.find('a[data-jk], a[href*="viewjob"], a[href*="/job/"]').first();
+                      $titleLink = $job
+                        .find('a[data-jk], a[href*="viewjob"], a[href*="/job/"]')
+                        .first();
                     }
-                    
+
                     let title = $titleLink.text().trim();
                     let jobUrl = $titleLink.attr("href");
 
                     // Alternative title extraction methods
                     if (!title) {
-                      title = $job.find("h2, .jobTitle, .job-title, .title, span[title]").first().text().trim();
+                      title = $job
+                        .find("h2, .jobTitle, .job-title, .title, span[title]")
+                        .first()
+                        .text()
+                        .trim();
                       // Try getting from title attribute
                       if (!title) {
                         title = $job.find("[title]").first().attr("title") || "";
@@ -220,7 +249,8 @@ export class IndeedScraper extends BaseScraper {
                       }
                     } else {
                       // Try to extract job key from data attributes
-                      const jobKey = $job.attr("data-jk") || $job.find("[data-jk]").first().attr("data-jk");
+                      const jobKey =
+                        $job.attr("data-jk") || $job.find("[data-jk]").first().attr("data-jk");
                       if (jobKey) {
                         jobUrl = `https://www.indeed.com/viewjob?jk=${jobKey}`;
                       } else {
@@ -230,69 +260,97 @@ export class IndeedScraper extends BaseScraper {
 
                     // Enhanced company extraction
                     let company = $job
-                      .find(".company, .companyName, .jobCard_companyName, [data-testid='company-name'], span[data-testid='company-name']")
+                      .find(
+                        ".company, .companyName, .jobCard_companyName, [data-testid='company-name'], span[data-testid='company-name']"
+                      )
                       .first()
                       .text()
                       .trim();
-                    
+
                     if (!company) {
-                      company = $job.find(".employer, .employerName, [class*='company'], [class*='employer']").first().text().trim();
+                      company = $job
+                        .find(".employer, .employerName, [class*='company'], [class*='employer']")
+                        .first()
+                        .text()
+                        .trim();
                     }
-                    
+
                     // Try alternative company extraction
                     if (!company) {
-                      company = $job.find("a[href*='company'], span[title*='company' i]").first().text().trim();
+                      company = $job
+                        .find("a[href*='company'], span[title*='company' i]")
+                        .first()
+                        .text()
+                        .trim();
                     }
-                    
+
                     if (!company) company = "Indeed Company";
 
                     // Enhanced location extraction
                     let jobLocation = $job
-                      .find(".location, .companyLocation, .jobCard_location, [data-testid='job-location'], [class*='location']")
+                      .find(
+                        ".location, .companyLocation, .jobCard_location, [data-testid='job-location'], [class*='location']"
+                      )
                       .first()
                       .text()
                       .trim();
-                    
+
                     if (!jobLocation) {
-                      jobLocation = $job.find("[class*='location'], span[title*='location' i]").first().text().trim();
+                      jobLocation = $job
+                        .find("[class*='location'], span[title*='location' i]")
+                        .first()
+                        .text()
+                        .trim();
                     }
-                    
+
                     if (!jobLocation) jobLocation = loc;
 
                     // Enhanced description extraction
                     let description = $job
-                      .find(".summary, .job-snippet, .jobDescription, [data-testid='jobDescription'], .jobCard_jobDescription")
+                      .find(
+                        ".summary, .job-snippet, .jobDescription, [data-testid='jobDescription'], .jobCard_jobDescription"
+                      )
                       .first()
                       .text()
                       .trim();
-                    
+
                     if (!description) {
                       // Try getting from closest elements
-                      description = $job.find("div:contains('$'), div:contains('year'), div:contains('experience')").first().text().trim();
+                      description = $job
+                        .find("div:contains('$'), div:contains('year'), div:contains('experience')")
+                        .first()
+                        .text()
+                        .trim();
                     }
-                    
+
                     if (!description) {
                       description = `${title} position at ${company} in ${jobLocation}. Apply on Indeed for full details.`;
                     }
 
                     // Enhanced salary extraction
                     let salary = $job
-                      .find(".salary, .salary-snippet, .jobCard_salary, [data-testid='jobSalary'], [class*='salary']")
+                      .find(
+                        ".salary, .salary-snippet, .jobCard_salary, [data-testid='jobSalary'], [class*='salary']"
+                      )
                       .first()
                       .text()
                       .trim();
-                    
+
                     // Try alternative salary patterns
                     if (!salary) {
                       const salaryText = $job.text();
-                      const salaryMatch = salaryText.match(/\$[\d,]+(?:\s*-\s*\$[\d,]+)?(?:\s*(?:per|\/)\s*(?:hour|year|month))?/i);
+                      const salaryMatch = salaryText.match(
+                        /\$[\d,]+(?:\s*-\s*\$[\d,]+)?(?:\s*(?:per|\/)\s*(?:hour|year|month))?/i
+                      );
                       if (salaryMatch) {
                         salary = salaryMatch[0];
                       }
                     }
 
                     // Enhanced date extraction
-                    const dateElement = $job.find("time, .date, .jobCard_date, [data-testid='jobDate'], [class*='date']").first();
+                    const dateElement = $job
+                      .find("time, .date, .jobCard_date, [data-testid='jobDate'], [class*='date']")
+                      .first();
                     let postedDate = new Date();
                     if (dateElement.length) {
                       const datetime = dateElement.attr("datetime") || dateElement.text();
@@ -326,7 +384,11 @@ export class IndeedScraper extends BaseScraper {
                     jobData.skills = [...new Set([...jobData.skills, ...indeedSkills])];
 
                     jobs.push(jobData);
-                    console.log(`   ✅ Extracted: "${title}" at ${company} | ${jobLocation} | ${salary || 'No salary'}`);
+                    console.log(
+                      `   ✅ Extracted: "${title}" at ${company} | ${jobLocation} | ${
+                        salary || "No salary"
+                      }`
+                    );
                   } catch (error) {
                     console.error("Error processing Indeed job:", error);
                   }

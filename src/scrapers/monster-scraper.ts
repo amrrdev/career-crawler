@@ -117,27 +117,46 @@ export class MonsterScraper extends BaseScraper {
         "node.js developer",
         "devops engineer",
         "data scientist",
+        "mobile developer",
+        "cloud engineer",
       ];
 
-      // Locations to search
+      // Global locations to search
       const locations = [
-        "Egypt",
         "Remote",
         "United States",
         "United Kingdom",
         "Canada",
         "Germany",
-        "Dubai",
+        "Australia",
+        "Netherlands",
+        "France",
+        "Switzerland",
+        "Sweden",
+        "Singapore",
+        "Dubai, UAE",
         "Saudi Arabia",
+        "Egypt",
+        "India",
+        "Ireland",
+        "Spain",
+        "Italy",
+        "Poland",
+        "Brazil",
+        "Japan",
       ];
 
-      let searchCount = 0;
-      const maxSearches = 6; // Increased for browser mode
+      // Shuffle for global diversity
+      const shuffledLocations = locations.sort(() => Math.random() - 0.5);
+      const shuffledTerms = searchTerms.sort(() => Math.random() - 0.5);
 
-      for (const term of searchTerms.slice(0, 3)) {
-        // Increased to 3 search terms
-        for (const loc of locations.slice(0, 2)) {
-          // Keep 2 locations
+      let searchCount = 0;
+      const maxSearches = 8; // Increased for global coverage
+
+      for (const term of shuffledTerms.slice(0, 4)) {
+        // Use 4 search terms
+        for (const loc of shuffledLocations.slice(0, 2)) {
+          // Use 2 random locations each time
           if (searchCount >= maxSearches) break;
 
           try {

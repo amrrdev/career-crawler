@@ -100,28 +100,55 @@ export class LinkedInScraper extends BaseScraper {
         "node.js developer",
         "devops engineer",
         "data scientist",
+        "mobile developer",
+        "cloud engineer",
       ];
 
-      // Locations to search
+      // Global locations to search - much more comprehensive
       const locations = [
-        "Egypt",
         "Remote",
         "United States",
         "United Kingdom",
         "Canada",
         "Germany",
-        "Dubai",
+        "Australia",
+        "Netherlands",
+        "France",
+        "Switzerland",
+        "Sweden",
+        "Singapore",
+        "Dubai, UAE",
         "Saudi Arabia",
+        "Egypt",
+        "India",
+        "Israel",
+        "Ireland",
+        "Spain",
+        "Italy",
+        "Poland",
+        "Brazil",
+        "Mexico",
+        "Japan",
+        "South Korea",
       ];
 
-      let searchCount = 0;
-      const maxSearches = 8; // Increased limit for more variation
+      // Shuffle locations to get global diversity
+      const shuffledLocations = locations.sort(() => Math.random() - 0.5);
+      const shuffledTerms = searchTerms.sort(() => Math.random() - 0.5);
 
-      // Try multiple pages for each search to get more diverse results
-      for (const term of searchTerms.slice(0, 3)) {
-        // Use 3 search terms
-        for (const loc of locations.slice(0, 3)) {
-          // Use 3 locations
+      console.log(
+        `🌍 Global search will cover these locations: ${shuffledLocations.slice(0, 12).join(", ")}`
+      );
+      console.log(`🔍 Using search terms: ${shuffledTerms.slice(0, 4).join(", ")}`);
+
+      let searchCount = 0;
+      const maxSearches = 12; // Increased for more global coverage
+
+      // Use more search terms and locations for global coverage
+      for (const term of shuffledTerms.slice(0, 4)) {
+        // Use 4 search terms
+        for (const loc of shuffledLocations.slice(0, 3)) {
+          // Use 3 random locations each time
           // Try multiple pages (0, 25, 50) for each search
           for (let page = 0; page < 3; page++) {
             const start = page * 25; // LinkedIn uses 25 results per page
