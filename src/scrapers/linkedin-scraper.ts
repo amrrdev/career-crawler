@@ -1,54 +1,73 @@
 import { BaseScraper } from "./base-scraper";
 import { ScrapingResult, Job } from "../types/job.types";
+import { AntiDetectionManager } from "./anti-detection";
 import * as cheerio from "cheerio";
 
 export class LinkedInScraper extends BaseScraper {
   protected sourceName = "LinkedIn";
   protected baseUrl = "https://www.linkedin.com";
+  private antiDetection: AntiDetectionManager;
 
-  // Multiple user agents to rotate
-  private userAgents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-  ];
+  constructor() {
+    super();
+    this.antiDetection = new AntiDetectionManager();
+
+    // Clean up old sessions periodically
+    setInterval(() => {
+      this.antiDetection.cleanup();
+    }, 5 * 60 * 1000); // Every 5 minutes
+  }
 
   protected async fetchPage(url: string): Promise<string> {
     try {
-      // Longer delay for LinkedIn
-      await this.sleep(this.delay + Math.random() * 2000); // Random delay 1-3 seconds
+      const domain = "linkedin.com";
 
-      const randomUserAgent = this.userAgents[Math.floor(Math.random() * this.userAgents.length)];
+      // Check cache first
+      const cached = this.antiDetection.getCachedResponse(url);
+      if (cached) {
+        console.log(`Using cached response for ${url.substring(0, 100)}...`);
+        return cached;
+      }
 
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": randomUserAgent,
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
-          "Accept-Encoding": "gzip, deflate, br",
-          Connection: "keep-alive",
-          "Upgrade-Insecure-Requests": "1",
-          "Sec-Fetch-Dest": "document",
-          "Sec-Fetch-Mode": "navigate",
-          "Sec-Fetch-Site": "none",
-          "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-          "Sec-Ch-Ua-Mobile": "?0",
-          "Sec-Ch-Ua-Platform": '"Windows"',
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-        },
-      });
+      // Check if we can make request (rate limiting)
+      if (!this.antiDetection.canMakeRequest(domain)) {
+        const delay = this.antiDetection.getSmartDelay(domain);
+        console.log(`Rate limited, waiting ${delay}ms before retry...`);
+        await this.sleep(delay);
+      }
+
+      // Smart delay based on activity
+      const smartDelay = this.antiDetection.getSmartDelay(domain);
+      console.log(`Smart delay: ${smartDelay}ms for LinkedIn`);
+      await this.sleep(smartDelay);
+
+      // Get realistic headers
+      const headers = this.antiDetection.getRealisticHeaders(domain);
+
+      console.log(`Fetching LinkedIn: ${url.substring(0, 100)}...`);
+      const response = await fetch(url, { headers });
+
+      // Update session
+      this.antiDetection.updateSession(domain, [], !response.ok && response.status === 429);
 
       if (!response.ok) {
+        if (response.status === 429) {
+          console.log("⚠️  LinkedIn rate limited us, marking session as blocked");
+          this.antiDetection.updateSession(domain, [], true);
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      return await response.text();
+      const html = await response.text();
+
+      // Cache successful response
+      this.antiDetection.setCachedResponse(url, html);
+
+      console.log(`✅ Successfully fetched LinkedIn page`);
+      return html;
     } catch (error) {
-      console.error(`Failed to fetch LinkedIn page ${url}:`, error);
+      console.error(`❌ Failed to fetch LinkedIn page:`, error);
+      this.antiDetection.updateSession("linkedin.com", [], true);
       throw error;
     }
   }
@@ -56,6 +75,7 @@ export class LinkedInScraper extends BaseScraper {
   public async scrapeJobs(searchQuery?: string, location?: string): Promise<ScrapingResult> {
     try {
       const jobs: Job[] = [];
+      console.log("🔍 Starting LinkedIn job scraping with anti-detection...");
 
       // LinkedIn job search terms - focusing on tech jobs
       const searchTerms = [
@@ -84,7 +104,7 @@ export class LinkedInScraper extends BaseScraper {
       ];
 
       let searchCount = 0;
-      const maxSearches = 4; // Limit to avoid being blocked
+      const maxSearches = 4; // Conservative limit
 
       for (const term of searchTerms.slice(0, 2)) {
         // Only 2 search terms
@@ -93,7 +113,7 @@ export class LinkedInScraper extends BaseScraper {
           if (searchCount >= maxSearches) break;
 
           try {
-            console.log(`Searching LinkedIn for: ${term} in ${loc}`);
+            console.log(`🎯 Searching LinkedIn for: "${term}" in "${loc}"`);
 
             // LinkedIn public job search URL
             const searchUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
@@ -110,13 +130,15 @@ export class LinkedInScraper extends BaseScraper {
               ".jobs-search-results__list-item",
               ".job-result-card",
               '[data-entity-urn*="jobPosting"]',
+              ".base-search-card",
+              ".base-card",
             ];
 
             let foundJobs = false;
 
             for (const selector of jobSelectors) {
               const jobElements = $(selector);
-              console.log(`Trying selector ${selector}: found ${jobElements.length} elements`);
+              console.log(`   Trying selector "${selector}": found ${jobElements.length} elements`);
 
               if (jobElements.length > 0) {
                 foundJobs = true;
@@ -130,7 +152,7 @@ export class LinkedInScraper extends BaseScraper {
                     // Extract job title
                     const $titleLink = $job
                       .find(
-                        'h3 a, .job-title a, [data-tracking-control-name="public_jobs_jserp-result_search-card"] h3 a'
+                        'h3 a, .job-title a, [data-tracking-control-name="public_jobs_jserp-result_search-card"] h3 a, .base-search-card__title a'
                       )
                       .first();
                     let title = $titleLink.text().trim();
@@ -139,7 +161,9 @@ export class LinkedInScraper extends BaseScraper {
                     // Alternative title extraction
                     if (!title) {
                       title = $job
-                        .find("h3, .job-title, .jobs-search-results__list-item h3")
+                        .find(
+                          "h3, .job-title, .jobs-search-results__list-item h3, .base-search-card__title"
+                        )
                         .first()
                         .text()
                         .trim();
@@ -161,13 +185,17 @@ export class LinkedInScraper extends BaseScraper {
 
                     // Extract company
                     let company = $job
-                      .find(".job-search-card__subtitle-link, .job-result-card__company-link, h4 a")
+                      .find(
+                        ".job-search-card__subtitle-link, .job-result-card__company-link, h4 a, .base-search-card__subtitle a"
+                      )
                       .first()
                       .text()
                       .trim();
                     if (!company) {
                       company = $job
-                        .find('h4, .company-name, [data-tracking-control-name*="company"]')
+                        .find(
+                          'h4, .company-name, [data-tracking-control-name*="company"], .base-search-card__subtitle'
+                        )
                         .first()
                         .text()
                         .trim();
@@ -176,7 +204,9 @@ export class LinkedInScraper extends BaseScraper {
 
                     // Extract location
                     let jobLocation = $job
-                      .find(".job-search-card__location, .job-result-card__location")
+                      .find(
+                        ".job-search-card__location, .job-result-card__location, .base-search-card__metadata"
+                      )
                       .first()
                       .text()
                       .trim();
@@ -191,7 +221,9 @@ export class LinkedInScraper extends BaseScraper {
 
                     // Extract job description/summary
                     let description = $job
-                      .find(".job-search-card__snippet, .job-result-card__snippet")
+                      .find(
+                        ".job-search-card__snippet, .job-result-card__snippet, .base-search-card__info"
+                      )
                       .first()
                       .text()
                       .trim();
@@ -201,7 +233,9 @@ export class LinkedInScraper extends BaseScraper {
 
                     // Extract posting date
                     const dateElement = $job
-                      .find("time, .job-search-card__listdate, [datetime]")
+                      .find(
+                        "time, .job-search-card__listdate, [datetime], .base-search-card__metadata-item"
+                      )
                       .first();
                     let postedDate = new Date();
                     if (dateElement.length) {
@@ -223,7 +257,7 @@ export class LinkedInScraper extends BaseScraper {
                     jobData.skills = [...new Set([...jobData.skills, ...linkedinSkills])];
 
                     jobs.push(jobData);
-                    console.log(`✓ Extracted job: ${title} at ${company}`);
+                    console.log(`   ✅ Extracted: "${title}" at ${company}`);
                   } catch (error) {
                     console.error("Error processing LinkedIn job:", error);
                   }
@@ -234,15 +268,17 @@ export class LinkedInScraper extends BaseScraper {
             }
 
             if (!foundJobs) {
-              console.log(`No jobs found with any selector for: ${term} in ${loc}`);
+              console.log(`   ❌ No jobs found with any selector for: ${term} in ${loc}`);
             }
 
             searchCount++;
 
-            // Longer delay between searches for LinkedIn
-            await this.sleep(4000 + Math.random() * 2000); // 4-6 seconds
+            // Smart delay between searches
+            const smartDelay = this.antiDetection.getSmartDelay("linkedin.com");
+            console.log(`   ⏱️  Smart delay: ${smartDelay}ms before next search`);
+            await this.sleep(smartDelay);
           } catch (error) {
-            console.error(`Error searching LinkedIn for ${term} in ${loc}:`, error);
+            console.error(`❌ Error searching LinkedIn for ${term} in ${loc}:`, error);
           }
         }
 
@@ -250,7 +286,7 @@ export class LinkedInScraper extends BaseScraper {
       }
 
       console.log(
-        `LinkedIn scraping completed. Found ${jobs.length} jobs from ${searchCount} searches.`
+        `🎉 LinkedIn scraping completed. Found ${jobs.length} jobs from ${searchCount} searches.`
       );
 
       return {
@@ -260,7 +296,7 @@ export class LinkedInScraper extends BaseScraper {
         totalFound: jobs.length,
       };
     } catch (error) {
-      console.error("LinkedIn scraper error:", error);
+      console.error("❌ LinkedIn scraper error:", error);
       return {
         jobs: [],
         source: this.sourceName,
