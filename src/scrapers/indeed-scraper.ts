@@ -121,7 +121,7 @@ export class IndeedScraper extends BaseScraper {
         "cloud engineer",
       ];
 
-      // Global locations to search
+      // Locations to search
       const locations = [
         "Remote",
         "United States",
@@ -146,17 +146,13 @@ export class IndeedScraper extends BaseScraper {
         "Japan",
       ];
 
-      // Shuffle for global diversity
-      const shuffledLocations = locations.sort(() => Math.random() - 0.5);
-      const shuffledTerms = searchTerms.sort(() => Math.random() - 0.5);
-
       let searchCount = 0;
-      const maxSearches = 8; // Increased for global coverage
+      const maxSearches = 6; // Slightly increased since we're using browser
 
-      for (const term of shuffledTerms.slice(0, 4)) {
-        // Use 4 search terms
-        for (const loc of shuffledLocations.slice(0, 2)) {
-          // Use 2 random locations each time
+      for (const term of searchTerms.slice(0, 3)) {
+        // Increased to 3 search terms
+        for (const loc of locations.slice(0, 2)) {
+          // Keep 2 locations
           if (searchCount >= maxSearches) break;
 
           try {
@@ -398,9 +394,32 @@ export class IndeedScraper extends BaseScraper {
               }
             }
 
+            // If no jobs found with standard selectors, try comprehensive extraction
             if (!foundJobs) {
-              console.log(`   ❌ No jobs found with any selector for: ${term} in ${loc}`);
-              console.log(`   📄 Page content preview: ${html.substring(0, 200)}...`);
+              console.log(
+                `   🔍 No jobs found with standard selectors, trying comprehensive extraction...`
+              );
+              const comprehensiveJobs = this.extractJobsComprehensively($, html, term, loc);
+              jobs.push(...comprehensiveJobs);
+
+              if (comprehensiveJobs.length > 0) {
+                foundJobs = true;
+                console.log(
+                  `   ✅ Found ${comprehensiveJobs.length} jobs using comprehensive extraction`
+                );
+              } else {
+                console.log(`   ❌ No jobs found with any method for: ${term} in ${loc}`);
+                console.log(`   📄 Page content preview: ${html.substring(0, 200)}...`);
+
+                // Debug: Look for job-related text in the HTML
+                const jobKeywords = ["jobs", "position", "hiring", "employment", "career"];
+                const foundKeywords = jobKeywords.filter((keyword) =>
+                  html.toLowerCase().includes(keyword)
+                );
+                if (foundKeywords.length > 0) {
+                  console.log(`   🔍 Found job-related keywords: ${foundKeywords.join(", ")}`);
+                }
+              }
             }
 
             searchCount++;
@@ -436,6 +455,185 @@ export class IndeedScraper extends BaseScraper {
         totalFound: 0,
       };
     }
+  }
+
+  // Comprehensive job extraction method for when standard selectors fail
+  private extractJobsComprehensively(
+    $: cheerio.CheerioAPI,
+    html: string,
+    searchTerm: string,
+    location: string
+  ): any[] {
+    const jobs: any[] = [];
+
+    try {
+      // Strategy 1: Look for any elements with job-related data attributes
+      console.log(`   🔍 Looking for job-related data attributes...`);
+      const jobDataElements = $(
+        '[data-job], [data-jobkey], [data-id], [data-testid], [id*="job"], [class*="job"]'
+      );
+
+      jobDataElements.each((index, element) => {
+        if (index >= 10) return false;
+
+        const $element = $(element);
+        const text = $element.text().trim();
+
+        // Look for title-like patterns in the text
+        const titleMatch = text.match(/^([^-•\n]{10,100})\s*[-•]/);
+        if (titleMatch) {
+          const title = titleMatch[1].trim();
+
+          // Extract additional info from the element
+          let company = "Indeed Company";
+          let jobLocation = location;
+
+          // Try to find company in nearby elements
+          const companyElement = $element
+            .find("span, div")
+            .filter((i, el) => {
+              const elText = $(el).text().toLowerCase();
+              return (
+                !elText.includes("ago") &&
+                !elText.includes("day") &&
+                !elText.includes("hour") &&
+                elText.length > 3 &&
+                elText.length < 50
+              );
+            })
+            .first();
+
+          if (companyElement.length) {
+            company = this.cleanText(companyElement.text());
+          }
+
+          const jobData = this.createJob({
+            title: this.cleanText(title),
+            company: company,
+            location: jobLocation,
+            description: `${title} position at ${company} in ${jobLocation}. Apply on Indeed for full details.`,
+            url: `https://www.indeed.com/jobs?q=${encodeURIComponent(title)}`,
+            postedDate: new Date(),
+          });
+
+          // Add skills
+          const indeedSkills = this.extractIndeedSkills(title, title, searchTerm);
+          jobData.skills = [...new Set([...jobData.skills, ...indeedSkills])];
+
+          jobs.push(jobData);
+          console.log(`   ✅ Comprehensive extraction: "${title}" at ${company}`);
+        }
+      });
+
+      // Strategy 2: Look for structured data in script tags
+      if (jobs.length === 0) {
+        console.log(`   🔍 Looking for structured data in scripts...`);
+        $('script[type="application/ld+json"]').each((index, script) => {
+          try {
+            const jsonData = JSON.parse($(script).html() || "{}");
+
+            if (
+              jsonData["@type"] === "JobPosting" ||
+              (Array.isArray(jsonData) && jsonData.some((item) => item["@type"] === "JobPosting"))
+            ) {
+              const jobPostings = Array.isArray(jsonData)
+                ? jsonData.filter((item) => item["@type"] === "JobPosting")
+                : [jsonData];
+
+              jobPostings.forEach((job, idx) => {
+                if (idx >= 5) return;
+
+                const jobData = this.createJob({
+                  title: this.cleanText(job.title || "Job Position"),
+                  company: this.cleanText(job.hiringOrganization?.name || "Indeed Company"),
+                  location: this.cleanText(job.jobLocation?.address?.addressLocality || location),
+                  description: this.cleanText(
+                    job.description ||
+                      `Job position at ${job.hiringOrganization?.name || "company"}.`
+                  ),
+                  url:
+                    job.url ||
+                    `https://www.indeed.com/jobs?q=${encodeURIComponent(job.title || searchTerm)}`,
+                  postedDate: job.datePosted ? new Date(job.datePosted) : new Date(),
+                });
+
+                if (job.baseSalary) {
+                  jobData.salary = this.cleanText(
+                    `${job.baseSalary.value} ${job.baseSalary.currency || "USD"}`
+                  );
+                }
+
+                // Add skills
+                const indeedSkills = this.extractIndeedSkills(
+                  job.title || "",
+                  job.description || "",
+                  searchTerm
+                );
+                jobData.skills = [...new Set([...jobData.skills, ...indeedSkills])];
+
+                jobs.push(jobData);
+                console.log(
+                  `   ✅ Structured data extraction: "${job.title}" at ${job.hiringOrganization?.name}`
+                );
+              });
+            }
+          } catch (error) {
+            // Ignore JSON parsing errors
+          }
+        });
+      }
+
+      // Strategy 3: Text pattern matching as last resort
+      if (jobs.length === 0) {
+        console.log(`   🔍 Trying text pattern matching...`);
+        const jobPatterns = [
+          /([A-Z][a-zA-Z\s]{10,80}(?:Developer|Engineer|Manager|Analyst|Specialist|Coordinator))/g,
+          /([A-Z][a-zA-Z\s]{5,60}(?:at|@)\s+[A-Z][a-zA-Z\s]{3,40})/g,
+        ];
+
+        jobPatterns.forEach((pattern, patternIdx) => {
+          if (jobs.length >= 5) return;
+
+          const matches = html.match(pattern);
+          if (matches) {
+            matches.slice(0, 3).forEach((match, idx) => {
+              const title = match.includes(" at ")
+                ? match.split(" at ")[0].trim()
+                : match.includes(" @ ")
+                ? match.split(" @ ")[0].trim()
+                : match.trim();
+              const company = match.includes(" at ")
+                ? match.split(" at ")[1]?.trim() || "Indeed Company"
+                : match.includes(" @ ")
+                ? match.split(" @ ")[1]?.trim() || "Indeed Company"
+                : "Indeed Company";
+
+              if (title.length > 10 && title.length < 100) {
+                const jobData = this.createJob({
+                  title: this.cleanText(title),
+                  company: this.cleanText(company),
+                  location: location,
+                  description: `${title} position. Apply on Indeed for full details.`,
+                  url: `https://www.indeed.com/jobs?q=${encodeURIComponent(title)}`,
+                  postedDate: new Date(),
+                });
+
+                // Add skills
+                const indeedSkills = this.extractIndeedSkills(title, title, searchTerm);
+                jobData.skills = [...new Set([...jobData.skills, ...indeedSkills])];
+
+                jobs.push(jobData);
+                console.log(`   ✅ Pattern matching: "${title}" at ${company}`);
+              }
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error(`   ❌ Error in comprehensive extraction:`, error);
+    }
+
+    return jobs;
   }
 
   private parseIndeedDate(dateStr: string): Date | null {
