@@ -107,7 +107,11 @@ export class JobAggregator {
 
   private generateJobSignature(job: Job): string {
     const normalizeText = (text: string): string => {
-      return text.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+      return text
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
     };
     const normalizedTitle = normalizeText(job.title);
     const normalizedCompany = normalizeText(job.company);
@@ -124,4 +128,3 @@ export class JobAggregator {
     this.database.close();
   }
 }
-
