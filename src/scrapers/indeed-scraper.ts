@@ -7,6 +7,7 @@ export class IndeedScraper extends BaseScraper {
   protected sourceName = "Indeed";
   protected baseUrl = "https://www.indeed.com";
   private antiDetection: AntiDetectionManager;
+  private readonly MAX_JOB_AGE_DAYS = 7;
 
   constructor() {
     super();
@@ -133,7 +134,20 @@ export class IndeedScraper extends BaseScraper {
             const html = await this.fetchPage(searchUrl);
             const $ = cheerio.load(html);
 
-            const jobSelectors = ["[data-jk]", ".jobsearch-SerpJobCard", ".job_seen_beacon", ".slider_container .slider_item", ".result", ".jobCard", "a[data-jk]", "[data-testid='job-title']"];
+            const jobSelectors = [
+              "[data-jk]",
+              ".jobsearch-SerpJobCard",
+              ".job_seen_beacon",
+              ".slider_container .slider_item",
+              ".result",
+              ".jobCard",
+              "a[data-jk]",
+              "[data-testid='job-title']",
+              ".card-root", // A common card selector
+              ".job_list_item", // Another common list item selector
+              "div[data-automation-id='job-card']", // More specific data-attribute selector
+              "div[class*='jobCard']", // Wildcard class selector
+            ];
 
             let foundJobs = false;
             for (const selector of jobSelectors) {
@@ -143,6 +157,7 @@ export class IndeedScraper extends BaseScraper {
               );
               if (jobElements.length > 0) {
                 foundJobs = true;
+                console.log(`   ✅ Found jobs using selector: "${selector}"`);
                 const promises = jobElements.map(async (index, element) => {
                   if (index >= 12) return;
                   try {
@@ -208,8 +223,11 @@ export class IndeedScraper extends BaseScraper {
                     const indeedSkills = this.extractIndeedSkills(title, description, term);
                     jobData.skills = [...new Set([...jobData.skills, ...indeedSkills])];
 
-                    await onJobScraped(jobData);
-                    totalFound++;
+                    const jobAgeDays = (new Date().getTime() - jobData.postedDate.getTime()) / (1000 * 3600 * 24);
+                    if (jobAgeDays <= this.MAX_JOB_AGE_DAYS) {
+                      await onJobScraped(jobData);
+                      totalFound++;
+                    }
                     console.log(`   ✅ Extracted: "${title}" at ${company}`);
                   } catch (error) {
                     console.error("Error processing Indeed job:", error);
@@ -236,7 +254,7 @@ export class IndeedScraper extends BaseScraper {
                 );
               } else {
                 console.log(`   ❌ No jobs found with any method for: ${term} in ${loc}`);
-                console.log(`   📄 Page content preview: ${html.substring(0, 200)}...`);
+                console.log(`   📄 Page content preview (first 500 chars): ${html.substring(0, 500)}...`);
 
                 // Debug: Look for job-related text in the HTML
                 const jobKeywords = ["jobs", "position", "hiring", "employment", "career"];
