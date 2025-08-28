@@ -101,307 +101,134 @@ export class IndeedScraper extends BaseScraper {
     }
   }
 
-  public async scrapeJobs(searchQuery?: string, location?: string): Promise<ScrapingResult> {
+  public async scrapeJobs(
+    onJobScraped: (job: Job) => Promise<void>,
+    searchQuery?: string,
+    location?: string
+  ): Promise<ScrapingResult> {
     try {
-      const jobs: Job[] = [];
+      let totalFound = 0;
 
-      // Popular tech job searches
-      const searchTerms = [
-        "software developer",
-        "frontend developer",
-        "backend developer",
-        "full stack developer",
-        "javascript developer",
-        "react developer",
-        "python developer",
-        "node.js developer",
-        "devops engineer",
-        "data scientist",
-        "mobile developer",
-        "cloud engineer",
-      ];
+      const searchTerms = ["software developer", "frontend developer", "backend developer", "full stack developer", "javascript developer", "react developer", "python developer", "node.js developer"];
+      const locations = ["Remote", "United States", "United Kingdom", "Canada", "Germany", "Australia", "Netherlands", "France"];
 
-      // Locations to search
-      const locations = [
-        "Remote",
-        "United States",
-        "United Kingdom",
-        "Canada",
-        "Germany",
-        "Australia",
-        "Netherlands",
-        "France",
-        "Switzerland",
-        "Sweden",
-        "Singapore",
-        "Dubai, UAE",
-        "Saudi Arabia",
-        "Egypt",
-        "India",
-        "Ireland",
-        "Spain",
-        "Italy",
-        "Poland",
-        "Brazil",
-        "Japan",
-      ];
+      const shuffledLocations = [...locations].sort(() => Math.random() - 0.5);
+      const shuffledTerms = [...searchTerms].sort(() => Math.random() - 0.5);
+      const locationsToUse = shuffledLocations.slice(0, 8);
+      const termsToUse = shuffledTerms.slice(0, 5);
+
+      console.log(`🌍 Indeed global coverage: ${locationsToUse.join(", ")}`);
+      console.log(`🔍 Indeed search terms: ${termsToUse.join(", ")}`);
 
       let searchCount = 0;
-      const maxSearches = 6; // Slightly increased since we're using browser
+      const maxSearches = 15;
 
-      for (const term of searchTerms.slice(0, 3)) {
-        // Increased to 3 search terms
-        for (const loc of locations.slice(0, 2)) {
-          // Keep 2 locations
+      for (const term of termsToUse) {
+        for (const loc of locationsToUse.slice(0, 3)) {
           if (searchCount >= maxSearches) break;
 
           try {
             console.log(`🎯 Searching Indeed for: "${term}" in "${loc}"`);
-
-            // Indeed job search URL with additional parameters
-            const searchUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(
-              term
-            )}&l=${encodeURIComponent(loc)}&fromage=7&sort=date&radius=25`;
-
+            const searchUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(term)}&l=${encodeURIComponent(loc)}&fromage=7&sort=date&radius=25`;
             const html = await this.fetchPage(searchUrl);
             const $ = cheerio.load(html);
 
-            // Enhanced Indeed job card selectors (updated for current site)
-            const jobSelectors = [
-              "[data-jk]", // Primary job card identifier
-              ".jobsearch-SerpJobCard",
-              ".job_seen_beacon",
-              ".slider_container .slider_item",
-              ".result",
-              ".jobCard",
-              "a[data-jk]", // Direct job links
-              "[data-testid='job-title']", // New testid selector
-            ];
+            const jobSelectors = ["[data-jk]", ".jobsearch-SerpJobCard", ".job_seen_beacon", ".slider_container .slider_item", ".result", ".jobCard", "a[data-jk]", "[data-testid='job-title']"];
 
             let foundJobs = false;
-
             for (const selector of jobSelectors) {
               const jobElements = $(selector);
               console.log(
                 `   🔍 Trying selector "${selector}": found ${jobElements.length} elements`
               );
-
               if (jobElements.length > 0) {
                 foundJobs = true;
-
-                jobElements.each((index, element) => {
-                  if (index >= 15) return false; // Increased limit per search
-
+                const promises = jobElements.map(async (index, element) => {
+                  if (index >= 12) return;
                   try {
                     const $job = $(element);
-
-                    // Enhanced job title extraction
-                    let $titleLink = $job
-                      .find('h2 a, .jobTitle a, .job-title a, [data-testid="jobTitle"] a')
-                      .first();
-
-                    // Try alternative selectors if not found
+                    let $titleLink = $job.find('h2 a, .jobTitle a, .job-title a, [data-testid="jobTitle"] a').first();
                     if ($titleLink.length === 0) {
-                      $titleLink = $job
-                        .find('a[data-jk], a[href*="viewjob"], a[href*="/job/"]')
-                        .first();
+                      $titleLink = $job.find('a[data-jk], a[href*="viewjob"], a[href*="/job/"]').first();
                     }
-
                     let title = $titleLink.text().trim();
                     let jobUrl = $titleLink.attr("href");
-
-                    // Alternative title extraction methods
                     if (!title) {
-                      title = $job
-                        .find("h2, .jobTitle, .job-title, .title, span[title]")
-                        .first()
-                        .text()
-                        .trim();
-                      // Try getting from title attribute
+                      title = $job.find("h2, .jobTitle, .job-title, .title, span[title]").first().text().trim();
                       if (!title) {
                         title = $job.find("[title]").first().attr("title") || "";
                       }
                     }
-
                     if (!title || title.length < 5) {
                       console.log(`   ⚠️  Skipping job with invalid title: "${title}"`);
                       return;
                     }
 
-                    // Enhanced URL cleaning and validation
                     if (jobUrl) {
                       if (!jobUrl.startsWith("http")) {
-                        if (jobUrl.startsWith("/")) {
-                          jobUrl = `https://www.indeed.com${jobUrl}`;
-                        } else if (jobUrl.includes("jk=")) {
-                          // Extract job key from URL
-                          const jkMatch = jobUrl.match(/jk=([^&]+)/);
-                          if (jkMatch) {
-                            jobUrl = `https://www.indeed.com/viewjob?jk=${jkMatch[1]}`;
-                          }
-                        } else {
-                          jobUrl = `https://www.indeed.com/viewjob?jk=${jobUrl}`;
-                        }
+                        jobUrl = jobUrl.startsWith("/") ? `https://www.indeed.com${jobUrl}` : `https://www.indeed.com/viewjob?jk=${jobUrl.match(/jk=([^&]+)/)?.[1] || jobUrl}`;
                       }
                     } else {
-                      // Try to extract job key from data attributes
-                      const jobKey =
-                        $job.attr("data-jk") || $job.find("[data-jk]").first().attr("data-jk");
-                      if (jobKey) {
-                        jobUrl = `https://www.indeed.com/viewjob?jk=${jobKey}`;
-                      } else {
-                        jobUrl = `https://www.indeed.com/jobs?q=${encodeURIComponent(title)}`;
-                      }
+                      const jobKey = $job.attr("data-jk") || $job.find("[data-jk]").first().attr("data-jk");
+                      jobUrl = jobKey ? `https://www.indeed.com/viewjob?jk=${jobKey}` : `https://www.indeed.com/jobs?q=${encodeURIComponent(title)}`;
                     }
 
-                    // Enhanced company extraction
-                    let company = $job
-                      .find(
-                        ".company, .companyName, .jobCard_companyName, [data-testid='company-name'], span[data-testid='company-name']"
-                      )
-                      .first()
-                      .text()
-                      .trim();
-
+                    let company = $job.find(".company, .companyName, .jobCard_companyName, [data-testid='company-name'], span[data-testid='company-name']").first().text().trim();
                     if (!company) {
-                      company = $job
-                        .find(".employer, .employerName, [class*='company'], [class*='employer']")
-                        .first()
-                        .text()
-                        .trim();
+                      company = $job.find(".employer, .employerName, [class*='company'], [class*='employer']").first().text().trim();
                     }
-
-                    // Try alternative company extraction
-                    if (!company) {
-                      company = $job
-                        .find("a[href*='company'], span[title*='company' i]")
-                        .first()
-                        .text()
-                        .trim();
-                    }
-
                     if (!company) company = "Indeed Company";
 
-                    // Enhanced location extraction
-                    let jobLocation = $job
-                      .find(
-                        ".location, .companyLocation, .jobCard_location, [data-testid='job-location'], [class*='location']"
-                      )
-                      .first()
-                      .text()
-                      .trim();
-
-                    if (!jobLocation) {
-                      jobLocation = $job
-                        .find("[class*='location'], span[title*='location' i]")
-                        .first()
-                        .text()
-                        .trim();
-                    }
-
+                    let jobLocation = $job.find(".location, .companyLocation, .jobCard_location, [data-testid='job-location'], [class*='location']").first().text().trim();
                     if (!jobLocation) jobLocation = loc;
 
-                    // Enhanced description extraction
-                    let description = $job
-                      .find(
-                        ".summary, .job-snippet, .jobDescription, [data-testid='jobDescription'], .jobCard_jobDescription"
-                      )
-                      .first()
-                      .text()
-                      .trim();
+                    let description = $job.find(".summary, .job-snippet, .jobDescription, [data-testid='jobDescription'], .jobCard_jobDescription").first().text().trim();
+                    if (!description) description = `${title} position at ${company} in ${jobLocation}. Apply on Indeed for full details.`;
 
-                    if (!description) {
-                      // Try getting from closest elements
-                      description = $job
-                        .find("div:contains('$'), div:contains('year'), div:contains('experience')")
-                        .first()
-                        .text()
-                        .trim();
-                    }
-
-                    if (!description) {
-                      description = `${title} position at ${company} in ${jobLocation}. Apply on Indeed for full details.`;
-                    }
-
-                    // Enhanced salary extraction
-                    let salary = $job
-                      .find(
-                        ".salary, .salary-snippet, .jobCard_salary, [data-testid='jobSalary'], [class*='salary']"
-                      )
-                      .first()
-                      .text()
-                      .trim();
-
-                    // Try alternative salary patterns
+                    let salary = $job.find(".salary, .salary-snippet, .jobCard_salary, [data-testid='jobSalary'], [class*='salary']").first().text().trim();
                     if (!salary) {
-                      const salaryText = $job.text();
-                      const salaryMatch = salaryText.match(
-                        /\$[\d,]+(?:\s*-\s*\$[\d,]+)?(?:\s*(?:per|\/)\s*(?:hour|year|month))?/i
-                      );
-                      if (salaryMatch) {
-                        salary = salaryMatch[0];
-                      }
+                      const salaryMatch = $job.text().match(/\$[\d,]+(?:\s*-\s*\$[\d,]+)?(?:\s*(?:per|\/)\s*(?:hour|year|month))?/i);
+                      if (salaryMatch) salary = salaryMatch[0];
                     }
 
-                    // Enhanced date extraction
-                    const dateElement = $job
-                      .find("time, .date, .jobCard_date, [data-testid='jobDate'], [class*='date']")
-                      .first();
+                    const dateElement = $job.find("time, .date, .jobCard_date, [data-testid='jobDate'], [class*='date']").first();
                     let postedDate = new Date();
                     if (dateElement.length) {
-                      const datetime = dateElement.attr("datetime") || dateElement.text();
-                      postedDate = this.parseIndeedDate(datetime) || new Date();
-                    } else {
-                      // Try finding date in text content
+                      postedDate = this.parseIndeedDate(dateElement.attr("datetime") || dateElement.text()) || new Date();
+                    }
+                    else {
                       const dateText = $job.text();
                       const dateMatch = dateText.match(/(\d+)\s+(hour|day|week|month)s?\s+ago/i);
-                      if (dateMatch) {
-                        postedDate = this.parseIndeedDate(dateMatch[0]) || new Date();
-                      }
+                      if (dateMatch) postedDate = this.parseIndeedDate(dateMatch[0]) || new Date();
                     }
 
-                    const jobCreateData: any = {
-                      title: this.cleanText(title),
-                      company: this.cleanText(company),
-                      location: this.cleanText(jobLocation),
-                      description: this.cleanText(description),
-                      url: jobUrl,
-                      postedDate: postedDate,
-                    };
-
-                    if (salary) {
-                      jobCreateData.salary = this.cleanText(salary);
-                    }
-
+                    const jobCreateData: any = { title: this.cleanText(title), company: this.cleanText(company), location: this.cleanText(jobLocation), description: this.cleanText(description), url: jobUrl, postedDate };
+                    if (salary) jobCreateData.salary = this.cleanText(salary);
                     const jobData = this.createJob(jobCreateData);
-
-                    // Enhanced Indeed skill extraction
                     const indeedSkills = this.extractIndeedSkills(title, description, term);
                     jobData.skills = [...new Set([...jobData.skills, ...indeedSkills])];
 
-                    jobs.push(jobData);
-                    console.log(
-                      `   ✅ Extracted: "${title}" at ${company} | ${jobLocation} | ${
-                        salary || "No salary"
-                      }`
-                    );
+                    await onJobScraped(jobData);
+                    totalFound++;
+                    console.log(`   ✅ Extracted: "${title}" at ${company}`);
                   } catch (error) {
                     console.error("Error processing Indeed job:", error);
                   }
-                });
-
-                break; // Found jobs with this selector
+                }).get();
+                await Promise.all(promises);
+                break;
               }
             }
 
-            // If no jobs found with standard selectors, try comprehensive extraction
             if (!foundJobs) {
               console.log(
                 `   🔍 No jobs found with standard selectors, trying comprehensive extraction...`
               );
               const comprehensiveJobs = this.extractJobsComprehensively($, html, term, loc);
-              jobs.push(...comprehensiveJobs);
-
+              for (const job of comprehensiveJobs) {
+                await onJobScraped(job);
+                totalFound++;
+              }
               if (comprehensiveJobs.length > 0) {
                 foundJobs = true;
                 console.log(
@@ -423,27 +250,21 @@ export class IndeedScraper extends BaseScraper {
             }
 
             searchCount++;
-
-            // Enhanced delay between searches for browser mode
-            const extraDelay = Math.random() * 3000 + 2000; // 2-5 seconds extra
-            await this.sleep(this.delay + extraDelay);
+            await this.sleep(this.delay + Math.random() * 3000 + 2000);
           } catch (error) {
             console.error(`❌ Error searching Indeed for ${term} in ${loc}:`, error);
           }
         }
-
         if (searchCount >= maxSearches) break;
       }
 
-      console.log(
-        `🎉 Indeed scraping completed. Found ${jobs.length} jobs from ${searchCount} searches.`
-      );
+      console.log(`🎉 Indeed scraping completed. Found and processed ${totalFound} jobs.`);
 
       return {
-        jobs: jobs.slice(0, 50), // Limit to 50 jobs
+        jobs: [],
         source: this.sourceName,
-        success: jobs.length > 0,
-        totalFound: jobs.length,
+        success: totalFound > 0,
+        totalFound,
       };
     } catch (error) {
       console.error("❌ Indeed scraper error:", error);

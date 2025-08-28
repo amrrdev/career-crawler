@@ -2,34 +2,51 @@ import { BaseScraper } from "./base-scraper";
 import { ScrapingResult, Job } from "../types/job.types";
 import { AntiDetectionManager } from "./anti-detection";
 import * as cheerio from "cheerio";
+import * as fs from "fs";
+import * as path from "path";
+
+interface LinkedInSelectors {
+  jobCard: string[];
+  url: string[];
+  detailTitle: string[];
+  detailCompany: string[];
+  detailLocation: string[];
+  detailDescription: string[];
+  detailDate: string[];
+}
 
 export class LinkedInScraper extends BaseScraper {
   protected sourceName = "LinkedIn";
   protected baseUrl = "https://www.linkedin.com";
   private antiDetection: AntiDetectionManager;
   private bypassCache: boolean = false;
+  private selectors: LinkedInSelectors;
+  private readonly MAX_JOB_AGE_DAYS = 7;
 
   constructor(bypassCache: boolean = false) {
     super();
     this.antiDetection = new AntiDetectionManager();
     this.bypassCache = bypassCache;
+    this.selectors = this.loadSelectors();
 
-    // Clean up old sessions periodically
     setInterval(() => {
       this.antiDetection.cleanup();
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, 5 * 60 * 1000);
   }
 
-  // Method to set cache bypass
+  private loadSelectors(): LinkedInSelectors {
+    const filePath = path.join(__dirname, "linkedin-selectors.json");
+    const fileContent = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(fileContent);
+  }
+
   public setBypassCache(bypass: boolean): void {
     this.bypassCache = bypass;
   }
 
   protected async fetchPage(url: string): Promise<string> {
+    const domain = "linkedin.com";
     try {
-      const domain = "linkedin.com";
-
-      // Check cache first (unless bypassing)
       if (!this.bypassCache) {
         const cached = this.antiDetection.getCachedResponse(url);
         if (cached) {
@@ -37,58 +54,101 @@ export class LinkedInScraper extends BaseScraper {
           return cached;
         }
       }
-
-      // Check if we can make request (rate limiting)
-      if (!this.antiDetection.canMakeRequest(domain)) {
-        const delay = this.antiDetection.getSmartDelay(domain);
-        console.log(`Rate limited, waiting ${delay}ms before retry...`);
-        await this.sleep(delay);
-      }
-
-      // Smart delay based on activity
-      const smartDelay = this.antiDetection.getSmartDelay(domain);
-      console.log(`Smart delay: ${smartDelay}ms for LinkedIn`);
-      await this.sleep(smartDelay);
-
-      // Get realistic headers
-      const headers = this.antiDetection.getRealisticHeaders(domain);
-
-      console.log(`Fetching LinkedIn: ${url.substring(0, 100)}...`);
-      const response = await fetch(url, { headers });
-
-      // Update session
-      this.antiDetection.updateSession(domain, [], !response.ok && response.status === 429);
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          console.log("⚠️  LinkedIn rate limited us, marking session as blocked");
-          this.antiDetection.updateSession(domain, [], true);
-        }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const html = await response.text();
-
-      // Cache successful response (unless bypassing)
+      const html = await this.antiDetection.fetchPageWithBrowser(url, domain);
       if (!this.bypassCache) {
         this.antiDetection.setCachedResponse(url, html);
       }
-
-      console.log(`✅ Successfully fetched LinkedIn page`);
+      console.log(`✅ Successfully fetched LinkedIn page with Puppeteer`);
       return html;
     } catch (error) {
-      console.error(`❌ Failed to fetch LinkedIn page:`, error);
-      this.antiDetection.updateSession("linkedin.com", [], true);
+      console.error(`❌ Failed to fetch LinkedIn page with Puppeteer:`, error);
+      this.antiDetection.updateSession(domain, [], true);
       throw error;
     }
   }
 
-  public async scrapeJobs(searchQuery?: string, location?: string): Promise<ScrapingResult> {
-    try {
-      const jobs: Job[] = [];
-      console.log("🔍 Starting LinkedIn job scraping with anti-detection...");
+  private buildSearchUrl(term: string, loc: string, searchCount: number): string {
+    const timeRanges = ["r86400", "r259200"]; // 1 and 3 days
+    const timeRange = timeRanges[searchCount % timeRanges.length];
+    const searchParams = new URLSearchParams({
+      keywords: term,
+      location: loc,
+      f_TPR: timeRange,
+      f_JT: "F",
+      sortBy: "DD",
+    });
+    return `https://www.linkedin.com/jobs/search?${searchParams.toString()}`;
+  }
 
-      // LinkedIn job search terms - focusing on tech jobs
+  private extractText($element: cheerio.Cheerio<any>, selectors: string[]): string {
+    for (const selector of selectors) {
+      const text = $element.find(selector).first().text().trim();
+      if (text) return text;
+    }
+    return "";
+  }
+
+  private async scrapeJobUrls(searchUrl: string): Promise<string[]> {
+    try {
+      const html = await this.fetchPage(searchUrl);
+      const $ = cheerio.load(html);
+      const jobUrls = new Set<string>();
+
+      $(this.selectors.jobCard.join(", ")).each((_, element) => {
+        const url = $(element).find(this.selectors.url.join(", ")).attr("href");
+        if (url) {
+          jobUrls.add(url.split("?")[0]); // Clean URL
+        }
+      });
+
+      return Array.from(jobUrls);
+    } catch (error) {
+      console.error(`Failed to scrape job URLs from ${searchUrl}:`, error);
+      return [];
+    }
+  }
+
+  private async scrapeJobDetails(jobUrl: string): Promise<Job | null> {
+    try {
+      console.log(`Scraping details from: ${jobUrl}`);
+      const html = await this.fetchPage(jobUrl);
+      const $ = cheerio.load(html);
+
+      const title = this.extractText($("body"), this.selectors.detailTitle);
+      if (!title) return null; // Essential field
+
+      const company = this.extractText($("body"), this.selectors.detailCompany) || "N/A";
+      const location = this.extractText($("body"), this.selectors.detailLocation);
+      const description = this.extractText($("body"), this.selectors.detailDescription);
+      const dateStr = this.extractText($("body"), this.selectors.detailDate);
+      const postedDate = this.parseLinkedInDate(dateStr) || new Date();
+
+      return this.createJob({
+        title,
+        company,
+        location,
+        description,
+        url: jobUrl,
+        postedDate,
+      });
+    } catch (error) {
+      console.error(`Failed to scrape job details from ${jobUrl}:`, error);
+      return null;
+    }
+  }
+
+  private readonly CONCURRENCY_LIMIT = 4;
+
+  public async scrapeJobs(
+    onJobScraped: (job: Job) => Promise<void>,
+    searchQuery?: string,
+    location?: string
+  ): Promise<ScrapingResult> {
+    try {
+      const jobUrlCache = new Set<string>();
+      let totalFound = 0;
+      console.log("🔍 Starting LinkedIn two-phase job scraping...");
+
       const searchTerms = [
         "software developer",
         "frontend developer",
@@ -98,255 +158,61 @@ export class LinkedInScraper extends BaseScraper {
         "react developer",
         "python developer",
         "node.js developer",
-        "devops engineer",
-        "data scientist",
-        "mobile developer",
-        "cloud engineer",
       ];
-
-      // Global locations to search - much more comprehensive
       const locations = [
-        "Remote",
-        "United States",
-        "United Kingdom",
-        "Canada",
-        "Germany",
-        "Australia",
-        "Netherlands",
-        "France",
-        "Switzerland",
-        "Sweden",
-        "Singapore",
-        "Dubai, UAE",
-        "Saudi Arabia",
-        "Egypt",
-        "India",
-        "Israel",
-        "Ireland",
-        "Spain",
-        "Italy",
-        "Poland",
-        "Brazil",
-        "Mexico",
-        "Japan",
-        "South Korea",
+        "Remote", "United States", "United Kingdom", "Canada", "Germany", "Australia", "Netherlands", "France",
+        "Egypt", "Saudi Arabia", "United Arab Emirates", "Qatar"
       ];
 
-      // Shuffle locations to get global diversity
-      const shuffledLocations = locations.sort(() => Math.random() - 0.5);
-      const shuffledTerms = searchTerms.sort(() => Math.random() - 0.5);
-
-      console.log(
-        `🌍 Global search will cover these locations: ${shuffledLocations.slice(0, 12).join(", ")}`
-      );
-      console.log(`🔍 Using search terms: ${shuffledTerms.slice(0, 4).join(", ")}`);
+      const shuffledLocations = [...locations].sort(() => Math.random() - 0.5);
+      const shuffledTerms = [...searchTerms].sort(() => Math.random() - 0.5);
+      const locationsToUse = shuffledLocations.slice(0, 4);
 
       let searchCount = 0;
-      const maxSearches = 12; // Increased for more global coverage
+      const maxSearches = 10;
 
-      // Use more search terms and locations for global coverage
-      for (const term of shuffledTerms.slice(0, 4)) {
-        // Use 4 search terms
-        for (const loc of shuffledLocations.slice(0, 3)) {
-          // Use 3 random locations each time
-          // Try multiple pages (0, 25, 50) for each search
-          for (let page = 0; page < 3; page++) {
-            const start = page * 25; // LinkedIn uses 25 results per page
+      for (const term of shuffledTerms.slice(0, 5)) {
+        for (const loc of locationsToUse.slice(0, 2)) {
+          if (searchCount >= maxSearches) break;
 
-            if (searchCount >= maxSearches) break;
+          console.log(`🎯 Searching LinkedIn for: "${term}" in "${loc}"`);
+          const searchUrl = this.buildSearchUrl(term, loc, searchCount);
+          const jobUrls = await this.scrapeJobUrls(searchUrl);
+          console.log(`   Found ${jobUrls.length} job URLs`);
 
-            try {
-              console.log(`🎯 Searching LinkedIn for: "${term}" in "${loc}", page ${page + 1}`);
+          const newUrls = jobUrls.filter(url => !jobUrlCache.has(url));
+          newUrls.forEach(url => jobUrlCache.add(url));
 
-              // Add cache busting parameter and vary the time range
-              const cacheBuster = Date.now();
-              const timeRange = page === 0 ? "r86400" : page === 1 ? "r259200" : "r604800"; // Last 1, 3, or 7 days
+          for (let i = 0; i < newUrls.length; i += this.CONCURRENCY_LIMIT) {
+            const batch = newUrls.slice(i, i + this.CONCURRENCY_LIMIT);
+            const promises = batch.map(url => this.scrapeJobDetails(url));
+            const results = await Promise.all(promises);
 
-              // LinkedIn public job search URL with cache busting and varied parameters
-              const searchUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
-                term
-              )}&location=${encodeURIComponent(
-                loc
-              )}&f_TPR=${timeRange}&f_JT=F&sortBy=DD&start=${start}&_=${cacheBuster}`;
-
-              const html = await this.fetchPage(searchUrl);
-              const $ = cheerio.load(html);
-
-              // LinkedIn job card selectors (they change frequently)
-              const jobSelectors = [
-                ".job-search-card",
-                ".jobs-search__results-list li",
-                ".jobs-search-results__list-item",
-                ".job-result-card",
-                '[data-entity-urn*="jobPosting"]',
-                ".base-search-card",
-                ".base-card",
-              ];
-
-              let foundJobs = false;
-
-              for (const selector of jobSelectors) {
-                const jobElements = $(selector);
-                console.log(
-                  `   Trying selector "${selector}": found ${jobElements.length} elements`
-                );
-
-                if (jobElements.length > 0) {
-                  foundJobs = true;
-
-                  jobElements.each((index, element) => {
-                    if (index >= 15) return false; // Increased limit per search
-
-                    try {
-                      const $job = $(element);
-
-                      // Extract job title
-                      const $titleLink = $job
-                        .find(
-                          'h3 a, .job-title a, [data-tracking-control-name="public_jobs_jserp-result_search-card"] h3 a, .base-search-card__title a'
-                        )
-                        .first();
-                      let title = $titleLink.text().trim();
-                      let jobUrl = $titleLink.attr("href");
-
-                      // Alternative title extraction
-                      if (!title) {
-                        title = $job
-                          .find(
-                            "h3, .job-title, .jobs-search-results__list-item h3, .base-search-card__title"
-                          )
-                          .first()
-                          .text()
-                          .trim();
-                      }
-
-                      if (!title || title.length < 5) return;
-
-                      // Clean and validate URL
-                      if (jobUrl && !jobUrl.startsWith("http")) {
-                        jobUrl = jobUrl.startsWith("/")
-                          ? `https://www.linkedin.com${jobUrl}`
-                          : `https://www.linkedin.com/jobs/${jobUrl}`;
-                      }
-                      if (!jobUrl) {
-                        jobUrl = `https://www.linkedin.com/jobs/search?keywords=${encodeURIComponent(
-                          title
-                        )}`;
-                      }
-
-                      // Extract company
-                      let company = $job
-                        .find(
-                          ".job-search-card__subtitle-link, .job-result-card__company-link, h4 a, .base-search-card__subtitle a"
-                        )
-                        .first()
-                        .text()
-                        .trim();
-                      if (!company) {
-                        company = $job
-                          .find(
-                            'h4, .company-name, [data-tracking-control-name*="company"], .base-search-card__subtitle'
-                          )
-                          .first()
-                          .text()
-                          .trim();
-                      }
-                      if (!company) company = "LinkedIn Company";
-
-                      // Extract location
-                      let jobLocation = $job
-                        .find(
-                          ".job-search-card__location, .job-result-card__location, .base-search-card__metadata"
-                        )
-                        .first()
-                        .text()
-                        .trim();
-                      if (!jobLocation) {
-                        jobLocation = $job
-                          .find('[class*="location"], .job-search-card__location')
-                          .first()
-                          .text()
-                          .trim();
-                      }
-                      if (!jobLocation) jobLocation = loc;
-
-                      // Extract job description/summary
-                      let description = $job
-                        .find(
-                          ".job-search-card__snippet, .job-result-card__snippet, .base-search-card__info"
-                        )
-                        .first()
-                        .text()
-                        .trim();
-                      if (!description) {
-                        description = `${title} position at ${company} in ${jobLocation}. Apply on LinkedIn for full details.`;
-                      }
-
-                      // Extract posting date
-                      const dateElement = $job
-                        .find(
-                          "time, .job-search-card__listdate, [datetime], .base-search-card__metadata-item"
-                        )
-                        .first();
-                      let postedDate = new Date();
-                      if (dateElement.length) {
-                        const datetime = dateElement.attr("datetime") || dateElement.text();
-                        postedDate = this.parseLinkedInDate(datetime) || new Date();
-                      }
-
-                      const jobData = this.createJob({
-                        title: this.cleanText(title),
-                        company: this.cleanText(company),
-                        location: this.cleanText(jobLocation),
-                        description: this.cleanText(description),
-                        url: jobUrl,
-                        postedDate: postedDate,
-                      });
-
-                      jobs.push(jobData);
-                      console.log(`   ✅ Extracted: "${title}" at ${company}`);
-                    } catch (error) {
-                      console.error("Error processing LinkedIn job:", error);
-                    }
-                  });
-
-                  break; // Found jobs with this selector
+            for (const job of results) {
+              if (job) {
+                const jobAgeDays = (new Date().getTime() - job.postedDate.getTime()) / (1000 * 3600 * 24);
+                if (jobAgeDays <= this.MAX_JOB_AGE_DAYS) {
+                  await onJobScraped(job);
+                  totalFound++;
                 }
               }
-
-              if (!foundJobs) {
-                console.log(`   ❌ No jobs found with any selector for: ${term} in ${loc}`);
-              }
-
-              searchCount++;
-
-              // Smart delay between searches
-              const smartDelay = this.antiDetection.getSmartDelay("linkedin.com");
-              console.log(`   ⏱️  Smart delay: ${smartDelay}ms before next search`);
-              await this.sleep(smartDelay);
-            } catch (error) {
-              console.error(
-                `❌ Error searching LinkedIn for ${term} in ${loc}, page ${page + 1}:`,
-                error
-              );
             }
+            await this.sleep(this.antiDetection.getSmartDelay("linkedin.com") + 1000);
           }
-
-          if (searchCount >= maxSearches) break;
+          searchCount++;
         }
-
         if (searchCount >= maxSearches) break;
       }
 
       console.log(
-        `🎉 LinkedIn scraping completed. Found ${jobs.length} jobs from ${searchCount} searches.`
+        `🎉 LinkedIn scraping completed. Found and processed ${totalFound} fresh jobs.`
       );
 
       return {
-        jobs: jobs.slice(0, 50), // Limit to 50 jobs
+        jobs: [], // Jobs are now processed via callback
         source: this.sourceName,
-        success: jobs.length > 0,
-        totalFound: jobs.length,
+        success: true,
+        totalFound,
       };
     } catch (error) {
       console.error("❌ LinkedIn scraper error:", error);
@@ -362,31 +228,37 @@ export class LinkedInScraper extends BaseScraper {
 
   private parseLinkedInDate(dateStr: string): Date | null {
     if (!dateStr) return null;
-
     const now = new Date();
-    const lowerDate = dateStr.toLowerCase();
+    const lowerDate = dateStr.toLowerCase().trim();
 
-    // Parse relative dates
-    if (lowerDate.includes("hour")) {
-      const hours = parseInt(lowerDate.match(/(\d+)/)?.[1] || "1");
-      return new Date(now.getTime() - hours * 60 * 60 * 1000);
+    // Handle English relative dates
+    const englishMatch = lowerDate.match(/(\d+)\s*(minute|hour|day|week)s?/);
+    if (englishMatch) {
+      const value = parseInt(englishMatch[1]);
+      const unit = englishMatch[2];
+      if (unit === "minute") return new Date(now.getTime() - value * 60 * 1000);
+      if (unit === "hour") return new Date(now.getTime() - value * 60 * 60 * 1000);
+      if (unit === "day") return new Date(now.getTime() - value * 24 * 60 * 60 * 1000);
+      if (unit === "week") return new Date(now.getTime() - value * 7 * 24 * 60 * 60 * 1000);
     }
 
-    if (lowerDate.includes("day")) {
-      const days = parseInt(lowerDate.match(/(\d+)/)?.[1] || "1");
-      return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    // Handle French relative dates
+    const frenchMatch = lowerDate.match(/il y a (\d+)\s*(minute|heure|jour|semaine)s?/);
+    if (frenchMatch) {
+      const value = parseInt(frenchMatch[1]);
+      const unit = frenchMatch[2];
+      if (unit === "minute") return new Date(now.getTime() - value * 60 * 1000);
+      if (unit === "heure") return new Date(now.getTime() - value * 60 * 60 * 1000);
+      if (unit === "jour") return new Date(now.getTime() - value * 24 * 60 * 60 * 1000);
+      if (unit === "semaine") return new Date(now.getTime() - value * 7 * 24 * 60 * 60 * 1000);
     }
 
-    if (lowerDate.includes("week")) {
-      const weeks = parseInt(lowerDate.match(/(\d+)/)?.[1] || "1");
-      return new Date(now.getTime() - weeks * 7 * 24 * 60 * 60 * 1000);
-    }
-
-    // Try parsing ISO date
     try {
-      return new Date(dateStr);
-    } catch {
-      return null;
-    }
+      const parsedDate = new Date(dateStr);
+      if (!isNaN(parsedDate.getTime())) return parsedDate;
+    } catch {}
+
+    console.warn(`Could not parse date: "${dateStr}"`);
+    return null;
   }
 }

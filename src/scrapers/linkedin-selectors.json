@@ -1,0 +1,33 @@
+{
+  "jobCard": [
+    "[data-entity-urn*='jobPosting']",
+    ".job-search-card:has(a[href*='/jobs/view/'])",
+    ".jobs-search-results__list-item",
+    ".job-result-card"
+  ],
+  "url": [
+    "a[href*='/jobs/view/']"
+  ],
+  "detailTitle": [
+    ".top-card-layout__title",
+    ".job-details-jobs-unified-top-card__job-title",
+    "h1.jobs-unified-top-card__job-title"
+  ],
+  "detailCompany": [
+    ".top-card-layout__second-subline a",
+    ".job-details-jobs-unified-top-card__company-name a"
+  ],
+  "detailLocation": [
+    ".top-card-layout__second-subline",
+    ".job-details-jobs-unified-top-card__primary-description-container"
+  ],
+  "detailDescription": [
+    ".description__text",
+    "#job-details",
+    ".jobs-description__content"
+  ],
+  "detailDate": [
+    ".posted-time-ago__text",
+    ".job-details-jobs-unified-top-card__posted-date"
+  ]
+}

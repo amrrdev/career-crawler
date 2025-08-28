@@ -256,113 +256,104 @@ export class AntiDetectionManager {
   // Enhanced browser-based page fetching
   public async fetchPageWithBrowser(url: string, domain: string): Promise<string> {
     const session = this.getSession(domain);
-    let browser = session.browser;
-    let page: Page;
+    let retries = 1;
 
-    try {
-      // Create browser if not exists
-      if (!browser || !browser.isConnected()) {
-        console.log(`🚀 Launching new browser session for ${domain}`);
+    while (retries >= 0) {
+      let browser = session.browser;
+      let page: Page | null = null;
 
-        browser = await puppeteer.launch({
-          headless: "new",
-          defaultViewport: session.viewport,
-          args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--no-first-run",
-            "--no-zygote",
-            "--disable-gpu",
-            "--disable-features=VizDisplayCompositor",
-            "--disable-extensions",
-            "--disable-plugins",
-            "--disable-images", // Faster loading
-            "--disable-javascript", // We don't need JS for scraping
-            "--user-agent=" + session.userAgent,
-          ],
+      try {
+        if (!browser || !browser.isConnected()) {
+          console.log(`🚀 Launching new browser session for ${domain}`);
+          if (browser) await browser.close().catch(() => {});
+
+          browser = await puppeteer.launch({
+            headless: "new",
+            defaultViewport: session.viewport,
+            args: [
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-dev-shm-usage",
+              "--disable-accelerated-2d-canvas",
+              "--no-first-run",
+              "--no-zygote",
+              "--disable-gpu",
+              "--disable-features=VizDisplayCompositor",
+              "--disable-extensions",
+              "--disable-plugins",
+              "--disable-images",
+              "--disable-javascript",
+              "--user-agent=" + session.userAgent,
+            ],
+          });
+          session.browser = browser;
+          this.sessions.set(domain, session);
+        }
+
+        page = await browser.newPage();
+        await page.setViewport(session.viewport);
+        await page.setUserAgent(session.userAgent);
+        await page.setExtraHTTPHeaders({
+          "Accept-Language": "en-US,en;q=0.9,fr;q=0.8,ar;q=0.7",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         });
 
-        session.browser = browser;
-        this.sessions.set(domain, session);
-      }
+        await page.setRequestInterception(true);
+        page.on("request", (req) => {
+          const resourceType = req.resourceType();
+          if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
+            req.abort();
+          } else {
+            req.continue();
+          }
+        });
 
-      page = await browser.newPage();
-
-      // Set realistic properties
-      await page.setViewport(session.viewport);
-      await page.setUserAgent(session.userAgent);
-
-      // Set extra headers to look more realistic
-      await page.setExtraHTTPHeaders({
-        "Accept-Language": "en-US,en;q=0.9,ar;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Cache-Control": "max-age=0",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-      });
-
-      // Block unnecessary resources for faster scraping
-      await page.setRequestInterception(true);
-      page.on("request", (req) => {
-        const resourceType = req.resourceType();
-        if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
-          req.abort();
-        } else {
-          req.continue();
+        let gotoRetries = 2;
+        while (gotoRetries >= 0) {
+          try {
+            await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
+            break;
+          } catch (error) {
+            if (error instanceof Error && error.message.includes("Timeout") && gotoRetries > 0) {
+              console.warn(`Navigation timeout for ${url}, retrying... (${gotoRetries} retries left)`);
+              gotoRetries--;
+              await this.sleep(2000);
+            } else {
+              throw error;
+            }
+          }
         }
-      });
 
-      // Add some randomness to look human
-      const delay = this.getSmartDelay(domain);
-      console.log(`⏱️  Human-like delay: ${delay}ms for ${domain}`);
+        await this.simulateHumanBehavior(page);
+        const html = await page.content();
+        await page.close();
 
-      // Navigate to page with timeout
-      await page.goto(url, {
-        waitUntil: "domcontentloaded",
-        timeout: 30000,
-      });
+        this.updateSession(domain, [], false);
+        return html;
 
-      // Random small delay to simulate reading
-      await this.sleep(Math.random() * 2000 + 1000);
+      } catch (error) {
+        if (page) await page.close().catch(() => {});
 
-      // Simulate some human behavior
-      await this.simulateHumanBehavior(page);
+        if (error instanceof Error && error.message.includes("Session with given id not found") && retries > 0) {
+          console.warn(" puppeteer session lost, restarting browser and retrying...");
+          if (session.browser) {
+            await session.browser.close().catch(() => {});
+          }
+          delete session.browser;
+          retries--;
+          await this.sleep(1000);
+          continue;
+        }
 
-      // Get the HTML content
-      const html = await page.content();
-
-      // Update session
-      this.updateSession(domain, [], false);
-
-      await page.close();
-      return html;
-    } catch (error) {
-      console.error(`❌ Browser fetch error for ${domain}:`, error);
-
-      // Clean up page if it exists
-      try {
-        if (page!) await page.close();
-      } catch {}
-
-      // Mark session as potentially blocked if it's a navigation error
-      if (
-        error instanceof Error &&
-        (error.message.includes("net::ERR_") ||
-          error.message.includes("TimeoutError") ||
-          error.message.includes("403") ||
-          error.message.includes("blocked"))
-      ) {
-        this.updateSession(domain, [], true);
+        console.error(`❌ Browser fetch error for ${domain}:`, error);
+        if (error instanceof Error && (error.message.includes("net::ERR_") || error.message.includes("TimeoutError"))) {
+          this.updateSession(domain, [], true);
+        }
+        throw error;
       }
-
-      throw error;
     }
+    throw new Error("Failed to fetch page with browser after multiple retries");
   }
 
   // Simulate human-like behavior on the page

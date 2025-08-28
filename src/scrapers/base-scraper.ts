@@ -425,10 +425,19 @@ export abstract class BaseScraper {
   }
 
   protected cleanText(text: string): string {
-    return text.replace(/\s+/g, " ").trim();
+    return text
+      .replace(/[\n\r\t]/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/…/g, "")
+      .replace(/\bnew(?=\d+)/i, "") // Remove "new" from date strings
+      .trim();
   }
 
-  public abstract scrapeJobs(searchQuery?: string, location?: string): Promise<ScrapingResult>;
+  public abstract scrapeJobs(
+    onJobScraped: (job: Job) => Promise<void>,
+    searchQuery?: string,
+    location?: string
+  ): Promise<ScrapingResult>;
 
   protected createJob(data: {
     title: string;
@@ -449,11 +458,23 @@ export abstract class BaseScraper {
 
     const jobType = this.determineJobType(`${data.title} ${data.description}`);
 
+    let cleanedLocation = this.cleanText(data.location);
+    if (jobType === "remote") {
+      cleanedLocation = cleanedLocation.replace(/\bremote\b/gi, "").trim();
+      // Clean up leading commas or other separators if location becomes empty
+      if (cleanedLocation.startsWith(",") || cleanedLocation.startsWith("-")) {
+        cleanedLocation = cleanedLocation.substring(1).trim();
+      }
+      if (cleanedLocation === "") {
+        cleanedLocation = "Remote"; // Default to remote if nothing is left
+      }
+    }
+
     const job: Job = {
       id: this.generateJobId(data.url, data.title),
       title: this.cleanText(data.title),
       company: this.cleanText(data.company),
-      location: this.cleanText(data.location),
+      location: cleanedLocation,
       description: this.cleanText(data.description),
       url: data.url,
       skills: allSkills,

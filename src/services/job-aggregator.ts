@@ -8,6 +8,7 @@ import { Job, JobFilter, ScrapingResult } from "../types/job.types";
 export class JobAggregator {
   private database: Database;
   private scrapers: BaseScraper[];
+  private jobSignatureCache = new Set<string>();
 
   constructor(dbPath?: string, bypassCache: boolean = false) {
     this.database = new Database(dbPath);
@@ -20,47 +21,46 @@ export class JobAggregator {
   ): Promise<{
     totalFetched: number;
     totalSaved: number;
+    totalDuplicates: number;
     results: ScrapingResult[];
   }> {
     const results: ScrapingResult[] = [];
     let totalFetched = 0;
     let totalSaved = 0;
+    let totalDuplicates = 0;
 
-    console.log("Starting job aggregation...");
+    this.jobSignatureCache.clear();
+    console.log("🚀 Starting incremental job aggregation...");
+
+    const onJobScraped = async (job: Job) => {
+      totalFetched++;
+      const signature = this.generateJobSignature(job);
+      if (!this.jobSignatureCache.has(signature)) {
+        this.jobSignatureCache.add(signature);
+        await this.database.saveJob(job);
+        totalSaved++;
+        console.log(`💾 Saved new job: "${job.title}" from ${job.source}`);
+      } else {
+        totalDuplicates++;
+        console.log(`🔄 Duplicate job found, skipping: "${job.title}"`);
+      }
+    };
 
     for (const scraper of this.scrapers) {
       try {
-        console.log(`Scraping jobs from ${scraper.constructor.name}...`);
-        const result = await scraper.scrapeJobs(searchQuery, location);
+        console.log(`🔍 Scraping jobs from ${scraper.constructor.name}...`);
+        const result = await scraper.scrapeJobs(onJobScraped, searchQuery, location);
         results.push(result);
 
-        if (result.success && result.jobs.length > 0) {
-          const savedCount = await this.database.saveJobs(result.jobs);
-          totalSaved += savedCount;
-          totalFetched += result.jobs.length;
-
-          console.log(
-            `${scraper.constructor.name}: ${result.jobs.length} jobs found, ${savedCount} saved`
-          );
-
-          // Update source statistics
-          await this.database.updateJobSource({
-            name: result.source,
-            url: "",
-            isActive: true,
-            lastFetched: new Date(),
-            totalJobsFetched: result.jobs.length,
-          });
+        if (result.success) {
+          console.log(`✅ ${scraper.constructor.name} finished, found ${result.totalFound} jobs.`);
         } else {
-          console.log(
-            `${scraper.constructor.name}: Failed or no jobs found. Error: ${result.error || "None"}`
-          );
+          console.log(`❌ ${scraper.constructor.name} failed. Error: ${result.error || "None"}`);
         }
 
-        // Delay between different scrapers
         await this.sleep(2000);
       } catch (error) {
-        console.error(`Error with ${scraper.constructor.name}:`, error);
+        console.error(`❌ Error with ${scraper.constructor.name}:`, error);
         results.push({
           jobs: [],
           source: scraper.constructor.name,
@@ -72,12 +72,16 @@ export class JobAggregator {
     }
 
     console.log(
-      `Job aggregation completed. Total fetched: ${totalFetched}, Total saved: ${totalSaved}`
+      `🎉 Job aggregation completed!\n` +
+        `   📊 Total fetched: ${totalFetched}\n` +
+        `   💾 Jobs saved: ${totalSaved}\n` +
+        `   🔄 Duplicates found: ${totalDuplicates}`
     );
 
     return {
       totalFetched,
       totalSaved,
+      totalDuplicates,
       results,
     };
   }
@@ -95,13 +99,21 @@ export class JobAggregator {
   }
 
   public async searchJobs(filter: JobFilter): Promise<Job[]> {
-    // For now, we'll implement a simple search based on skills
-    // In a more advanced implementation, you could add more complex filtering
     if (filter.skills && filter.skills.length > 0) {
       return this.getJobsBySkills(filter.skills, 100);
     }
-
     return this.getAllJobs(100);
+  }
+
+  private generateJobSignature(job: Job): string {
+    const normalizeText = (text: string): string => {
+      return text.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+    };
+    const normalizedTitle = normalizeText(job.title);
+    const normalizedCompany = normalizeText(job.company);
+    const titleWords = normalizedTitle.split(" ").filter((w) => w.length > 2);
+    const keyTitle = titleWords.slice(0, 3).join(" ");
+    return `${keyTitle}::${normalizedCompany}`;
   }
 
   private sleep(ms: number): Promise<void> {
@@ -112,3 +124,4 @@ export class JobAggregator {
     this.database.close();
   }
 }
+

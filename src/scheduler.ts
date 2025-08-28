@@ -63,15 +63,7 @@ export class JobScheduler {
       console.log(`[${new Date().toISOString()}] Manual aggregation completed:`);
       console.log(`- Total jobs fetched: ${result.totalFetched}`);
       console.log(`- Total jobs saved: ${result.totalSaved}`);
-      console.log(`- Sources processed: ${result.results.length}`);
-
-      result.results.forEach((sourceResult) => {
-        if (sourceResult.success) {
-          console.log(`  ✓ ${sourceResult.source}: ${sourceResult.jobs.length} jobs`);
-        } else {
-          console.log(`  ✗ ${sourceResult.source}: Failed - ${sourceResult.error}`);
-        }
-      });
+      console.log(`- Total duplicates found: ${result.totalDuplicates}`);
 
       const stats = await this.aggregator.getJobStats();
       console.log(`Database now contains ${stats.total} total jobs`);
