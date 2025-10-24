@@ -1,0 +1,128 @@
+{
+  "search": {
+    "jobCards": [
+      "li[data-js-job]",
+      "li[data-job-id]",
+      "li.has-pointer-d",
+      "ul.media-list > li"
+    ],
+    "jobId": [
+      "data-job-id",
+      "data-js-job"
+    ],
+    "title": [
+      "h2 a[data-js-aid='jobID']",
+      "h2.t-large a",
+      "h2 a[href*='/jobs/']",
+      ".t-large a",
+      "h2 a"
+    ],
+    "titleText": [
+      "h2 a[data-js-aid='jobID']",
+      "h2.t-large a",
+      "h2 a"
+    ],
+    "url": [
+      "h2 a[data-js-aid='jobID']",
+      "h2 a[href*='/jobs/']",
+      "h2 a"
+    ],
+    "company": [
+      ".job-company-location-wrapper a.t-default.t-bold",
+      "a.t-bold[href*='/company/']",
+      ".job-company-location-wrapper a.t-default",
+      "a[href*='/company/']",
+      ".t-default.t-bold"
+    ],
+    "companyText": [
+      ".job-company-location-wrapper a.t-default.t-bold",
+      "a.t-bold[href*='/company/']",
+      "a[href*='/company/']"
+    ],
+    "location": [
+      ".job-company-location-wrapper .t-mute.t-small a span",
+      ".t-mute.t-small a span",
+      ".job-company-location-wrapper .t-mute span",
+      ".t-mute span"
+    ],
+    "description": [
+      ".jb-descr",
+      "div.t-small.m10t",
+      ".t-small",
+      "div.t-small"
+    ],
+    "datePosted": [
+      "span[id^='jb-date-']",
+      ".jb-date span.t-bold",
+      "span[data-automation-jobactivedate]",
+      ".jb-date .t-bold",
+      ".p0x.t-small.m10r.t-bold"
+    ],
+    "logo": [
+      "img.jb-logo",
+      "img[alt*='logo']",
+      ".b.bg-inverse img",
+      "img.b.bg-inverse"
+    ]
+  },
+  "detail": {
+    "fullDescription": [
+      ".card-content",
+      ".jb-listing-description",
+      "[data-automation-id='jobDescription']",
+      ".description",
+      ".card-content p"
+    ],
+    "requirements": [
+      ".card-content ul",
+      ".requirements-list",
+      ".card-content li",
+      "ul.list"
+    ],
+    "salary": [
+      ".jb-salary",
+      "[data-automation-id='salary']",
+      ".salary-info",
+      ".t-bold:contains('Salary')"
+    ],
+    "jobType": [
+      ".jb-type",
+      "[data-automation-id='jobType']",
+      ".job-type"
+    ],
+    "careerLevel": [
+      ".jb-career-level",
+      "[data-automation-id='careerLevel']",
+      ".career-level"
+    ],
+    "yearsExperience": [
+      ".jb-experience",
+      "[data-automation-id='yearsExperience']",
+      ".experience"
+    ],
+    "education": [
+      ".jb-education",
+      "[data-automation-id='education']",
+      ".education-level"
+    ],
+    "postedDate": [
+      "span[id^='jb-date-']",
+      ".jb-date",
+      "[data-automation-jobactivedate]",
+      ".posted-date"
+    ]
+  },
+  "pagination": {
+    "nextPage": [
+      "a[rel='next']",
+      "link[rel='next']",
+      ".pagination .next a",
+      "a.next"
+    ],
+    "pageNumbers": [
+      ".pagination > li > a",
+      ".pagination a[href*='page=']",
+      ".page-link"
+    ]
+  }
+}

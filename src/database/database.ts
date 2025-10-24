@@ -57,6 +57,20 @@ export class Database {
     });
   }
 
+  public async jobExists(url: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+      const query = `SELECT COUNT(*) as count FROM jobs WHERE url = ?`;
+
+      this.db.get(query, [url], (err, row: any) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row.count > 0);
+        }
+      });
+    });
+  }
+
   public async saveJob(job: Job): Promise<boolean> {
     return new Promise((resolve, reject) => {
       const query = `

@@ -1,0 +1,20 @@
+{
+  "jobCard": ["li.JobsList_jobListItem__wjTHv", "li[data-test='jobListing']"],
+  "url": ["a.JobCard_jobTitle__GLyJ1", "a[data-test='job-title']"],
+  "detailTitle": ["[data-test='job-title']", "h1.job-title", ".job-details-title h1", "h1"],
+  "detailCompany": [
+    "[data-test='employer-name']",
+    "div.employer-name",
+    ".employer-header-name",
+    "[data-employer-name]"
+  ],
+  "detailLocation": ["[data-test='location']", "div.location", ".job-location", "[data-location]"],
+  "detailDescription": [
+    "[data-test='job-description']",
+    "div.job-description",
+    ".job-desc-container",
+    "#JobDescriptionContainer"
+  ],
+  "detailDate": ["[data-test='post-date']", "div.posted-date", ".job-posted-date", "time"],
+  "detailSalary": ["[data-test='salary']", "div.salary-estimate", ".salary-info"]
+}

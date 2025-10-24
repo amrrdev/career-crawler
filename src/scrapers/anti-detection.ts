@@ -1,4 +1,9 @@
 import puppeteer, { Browser, Page } from "puppeteer";
+import puppeteerExtra from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+
+// Add stealth plugin to puppeteer
+puppeteerExtra.use(StealthPlugin());
 
 export interface ProxyConfig {
   host: string;
@@ -24,6 +29,9 @@ export class AntiDetectionManager {
   private readonly CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
   private readonly MAX_REQUESTS_PER_SESSION = 25; // Reduced for browser sessions
   private readonly SESSION_COOLDOWN = 30 * 60 * 1000; // 30 minutes
+  private activeBrowsers: number = 0;
+  private readonly MAX_CONCURRENT_BROWSERS = 2; // Limit concurrent browsers
+  private browserQueue: Promise<any> = Promise.resolve(); // Sequential browser operations
 
   // Realistic user agents and viewports from different browsers and OS
   private userAgents = [
@@ -267,27 +275,43 @@ export class AntiDetectionManager {
           console.log(`🚀 Launching new browser session for ${domain}`);
           if (browser) await browser.close().catch(() => {});
 
-          browser = await puppeteer.launch({
-            headless: "new",
-            defaultViewport: session.viewport,
-            args: [
-              "--no-sandbox",
-              "--disable-setuid-sandbox",
-              "--disable-dev-shm-usage",
-              "--disable-accelerated-2d-canvas",
-              "--no-first-run",
-              "--no-zygote",
-              "--disable-gpu",
-              "--disable-features=VizDisplayCompositor",
-              "--disable-extensions",
-              "--disable-plugins",
-              "--disable-images",
-              "--disable-javascript",
-              "--user-agent=" + session.userAgent,
-            ],
-          });
-          session.browser = browser;
-          this.sessions.set(domain, session);
+          // Wait if too many browsers are active
+          while (this.activeBrowsers >= this.MAX_CONCURRENT_BROWSERS) {
+            console.log(
+              `⏳ Waiting for browser slot (${this.activeBrowsers}/${this.MAX_CONCURRENT_BROWSERS} active)...`
+            );
+            await this.sleep(2000);
+          }
+
+          this.activeBrowsers++;
+          try {
+            // Use puppeteer-extra with stealth plugin for better anti-detection
+            browser = await puppeteerExtra.launch({
+              headless: "new",
+              defaultViewport: session.viewport,
+              protocolTimeout: 60000, // Increase timeout to 60 seconds
+              args: [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-accelerated-2d-canvas",
+                "--no-first-run",
+                "--no-zygote",
+                "--disable-gpu",
+                "--disable-features=VizDisplayCompositor",
+                "--disable-extensions",
+                "--disable-plugins",
+                "--disable-images",
+                "--disable-blink-features=AutomationControlled",
+                "--user-agent=" + session.userAgent,
+              ],
+            });
+            session.browser = browser;
+            this.sessions.set(domain, session);
+          } catch (launchError) {
+            this.activeBrowsers--;
+            throw launchError;
+          }
         }
 
         page = await browser.newPage();
@@ -296,7 +320,8 @@ export class AntiDetectionManager {
         await page.setExtraHTTPHeaders({
           "Accept-Language": "en-US,en;q=0.9,fr;q=0.8,ar;q=0.7",
           "Accept-Encoding": "gzip, deflate, br",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         });
 
         await page.setRequestInterception(true);
@@ -316,7 +341,9 @@ export class AntiDetectionManager {
             break;
           } catch (error) {
             if (error instanceof Error && error.message.includes("Timeout") && gotoRetries > 0) {
-              console.warn(`Navigation timeout for ${url}, retrying... (${gotoRetries} retries left)`);
+              console.warn(
+                `Navigation timeout for ${url}, retrying... (${gotoRetries} retries left)`
+              );
               gotoRetries--;
               await this.sleep(2000);
             } else {
@@ -325,17 +352,65 @@ export class AntiDetectionManager {
           }
         }
 
+        // Wait for main content to load (h1 for job title)
+        try {
+          await page.waitForSelector("h1", { timeout: 10000 });
+        } catch (e) {
+          console.warn(`⚠️  No h1 found on page, proceeding anyway...`);
+        }
+
+        // Glassdoor-specific: wait MUCH longer and add cookies
+        if (domain.includes("glassdoor")) {
+          // Wait for dynamic content to load
+          await this.sleep(3000 + Math.random() * 3000); // 3-6 seconds
+
+          // Try to wait for actual job content
+          try {
+            await page.waitForSelector('[data-test="jobListing"], li.react-job-listing', {
+              timeout: 5000,
+            });
+          } catch (e) {
+            console.warn(`⚠️  Glassdoor job listings not found, page might be blocked`);
+          }
+
+          // Add realistic cookies
+          await page.setCookie({
+            name: "gdId",
+            value: `${Date.now()}-${Math.random().toString(36).substring(7)}`,
+            domain: ".glassdoor.com",
+          });
+
+          // Check for bot detection page
+          const pageText = await page.content();
+          if (
+            pageText.includes("Job is OOO") ||
+            pageText.includes("Access Denied") ||
+            pageText.includes("captcha")
+          ) {
+            console.warn(`⚠️  Glassdoor bot detection triggered`);
+          }
+        }
+
         await this.simulateHumanBehavior(page);
         const html = await page.content();
         await page.close();
 
+        // Decrement browser counter to free up slot
+        this.activeBrowsers = Math.max(0, this.activeBrowsers - 1);
+
         this.updateSession(domain, [], false);
         return html;
-
       } catch (error) {
         if (page) await page.close().catch(() => {});
 
-        if (error instanceof Error && error.message.includes("Session with given id not found") && retries > 0) {
+        // Decrement browser counter even on error to free up slot
+        this.activeBrowsers = Math.max(0, this.activeBrowsers - 1);
+
+        if (
+          error instanceof Error &&
+          error.message.includes("Session with given id not found") &&
+          retries > 0
+        ) {
           console.warn(" puppeteer session lost, restarting browser and retrying...");
           if (session.browser) {
             await session.browser.close().catch(() => {});
@@ -347,7 +422,10 @@ export class AntiDetectionManager {
         }
 
         console.error(`❌ Browser fetch error for ${domain}:`, error);
-        if (error instanceof Error && (error.message.includes("net::ERR_") || error.message.includes("TimeoutError"))) {
+        if (
+          error instanceof Error &&
+          (error.message.includes("net::ERR_") || error.message.includes("TimeoutError"))
+        ) {
           this.updateSession(domain, [], true);
         }
         throw error;

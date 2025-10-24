@@ -2,7 +2,9 @@ import { Database } from "../database/database";
 import { BaseScraper } from "../scrapers/base-scraper";
 import { LinkedInScraper } from "../scrapers/linkedin-scraper";
 import { WuzzufScraper } from "../scrapers/wuzzuf-scraper";
+import { GlassdoorScraper } from "../scrapers/glassdoor-scraper";
 import { IndeedScraper } from "../scrapers/indeed-scraper";
+import { BaytScraper } from "../scrapers/bayt-scraper";
 import { Job, JobFilter, ScrapingResult } from "../types/job.types";
 
 export class JobAggregator {
@@ -12,7 +14,13 @@ export class JobAggregator {
 
   constructor(dbPath?: string, bypassCache: boolean = false) {
     this.database = new Database(dbPath);
-    this.scrapers = [new LinkedInScraper(bypassCache), new WuzzufScraper(), new IndeedScraper()];
+    this.scrapers = [
+      // new LinkedInScraper(bypassCache),
+      new IndeedScraper(bypassCache), // 🚀 World-class scraper - 50-100 jobs, 15-30 skills per job
+      // new WuzzufScraper(bypassCache),
+      // new GlassdoorScraper(bypassCache), // Testing with enhanced anti-detection
+      // new BaytScraper(bypassCache), // 🌍 MENA coverage with CRITICAL 7-day filter
+    ];
   }
 
   public async aggregateJobs(
@@ -34,16 +42,29 @@ export class JobAggregator {
 
     const onJobScraped = async (job: Job) => {
       totalFetched++;
+
+      // Check in-memory cache first (faster)
       const signature = this.generateJobSignature(job);
-      if (!this.jobSignatureCache.has(signature)) {
-        this.jobSignatureCache.add(signature);
-        await this.database.saveJob(job);
-        totalSaved++;
-        console.log(`💾 Saved new job: "${job.title}" from ${job.source}`);
-      } else {
+      if (this.jobSignatureCache.has(signature)) {
         totalDuplicates++;
-        console.log(`🔄 Duplicate job found, skipping: "${job.title}"`);
+        console.log(`🔄 Duplicate job found (memory), skipping: "${job.title}"`);
+        return;
       }
+
+      // Check database for URL duplicates
+      const existsInDb = await this.database.jobExists(job.url);
+      if (existsInDb) {
+        totalDuplicates++;
+        this.jobSignatureCache.add(signature); // Add to cache to avoid future DB checks
+        console.log(`� Duplicate job found (database), skipping: "${job.title}"`);
+        return;
+      }
+
+      // New job - save it
+      this.jobSignatureCache.add(signature);
+      await this.database.saveJob(job);
+      totalSaved++;
+      console.log(`� Saved new job: "${job.title}" from ${job.source}`);
     };
 
     for (const scraper of this.scrapers) {

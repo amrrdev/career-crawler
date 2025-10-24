@@ -1,0 +1,68 @@
+{
+  "jobCard": [
+    "div[data-search-result='true']",
+    ".css-1gatmva",
+    ".css-pkv5jc",
+    ".job-card",
+    "article.job-listing"
+  ],
+  "url": ["h2 a", ".css-m604qf a", "a[data-cy='job-title']", ".job-title-link"],
+  "detailTitle": [
+    "h1",
+    "h1[class*='css']",
+    "h1[data-cy='job-title']",
+    ".job-detail-title h1",
+    "h1.job-title",
+    "[class*='job-title']"
+  ],
+  "detailCompany": [
+    "a[data-cy='job-company-name']",
+    "a[class*='css'][href*='/company/']",
+    ".css-d7j1kk a",
+    ".company-name a",
+    ".css-17s97q8",
+    "a[href*='/company/']"
+  ],
+  "detailLocation": [
+    "span[class*='css-5wys0k']",
+    "span[class*='location']",
+    ".css-1ve4b75",
+    ".job-location",
+    "span:contains('Egypt')",
+    "span:contains('Cairo')"
+  ],
+  "detailDescription": [
+    "div[class*='css-1uobp1k']",
+    ".css-1uobp1k",
+    ".job-requirements",
+    ".css-y4udm8",
+    "#job-description",
+    ".job-details-description",
+    "div[class*='description']"
+  ],
+  "detailDate": [
+    "span.css-154erwh",
+    "span[class*='css-154']",
+    "div[class*='css-4c4ojb']",
+    ".css-4c4ojb",
+    ".css-1lh32fc",
+    "time.posted-date",
+    ".job-posted-date",
+    "span:contains('posted')",
+    "span:contains('ago')"
+  ],
+  "detailSalary": [
+    "span[class*='css-4xky9y']",
+    ".css-4xky9y",
+    ".salary",
+    "span[class*='salary']",
+    ".job-salary"
+  ],
+  "detailSkills": [
+    ".css-158icaa span",
+    ".job-skills span",
+    ".skill-tag",
+    "[data-cy='job-skill']",
+    "div[class*='skill'] span"
+  ]
+}

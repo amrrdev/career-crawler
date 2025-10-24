@@ -1,0 +1,53 @@
+{
+  "jobCard": [
+    "div.job_seen_beacon",
+    "div.cardOutline",
+    "div.slider_item",
+    "div[data-jk]",
+    "li.css-5lfssm",
+    "div.resultContent"
+  ],
+  "url": ["h2.jobTitle a", "a.jcs-JobTitle", "a[data-jk]", "h2 a[id^='job_']", "a.job-card-link"],
+  "detailTitle": [
+    "h1.jobsearch-JobInfoHeader-title",
+    "h1[class*='jobTitle']",
+    "h1.icl-u-xs-mb--xs",
+    "div[class*='jobsearch-JobInfoHeader'] h1",
+    "h1"
+  ],
+  "detailCompany": [
+    "div[data-company-name='true']",
+    "a[data-testid='inlineHeader-companyName']",
+    "div[data-testid='inlineHeader-companyName']",
+    "span[class*='companyName']",
+    "div.icl-u-lg-mr--sm"
+  ],
+  "detailLocation": [
+    "div[data-testid='job-location']",
+    "div[data-testid='inlineHeader-companyLocation']",
+    "div.jobsearch-JobInfoHeader-subtitle > div",
+    "div[class*='companyLocation']",
+    "div.icl-u-xs-mt--xs"
+  ],
+  "detailDescription": [
+    "div#jobDescriptionText",
+    "div.jobsearch-jobDescriptionText",
+    "div[id*='jobDescriptionText']",
+    "div[class*='jobDescription']",
+    "div.job-description"
+  ],
+  "detailDate": [
+    "div.jobsearch-JobMetadataFooter",
+    "span[class*='date']",
+    "div[class*='metadata']",
+    "span[data-testid='myJobsStateDate']",
+    "div.job-snippet li"
+  ],
+  "detailSalary": [
+    "div[id*='salaryInfoAndJobType']",
+    "div[class*='salary-snippet']",
+    "span.icl-u-xs-mr--xs",
+    "div.metadata.salary-snippet-container",
+    "div[class*='salary']"
+  ]
+}

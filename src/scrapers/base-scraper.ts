@@ -357,7 +357,7 @@ export abstract class BaseScraper {
 
       // Data & Analytics
       {
-        patterns: [/\bmachine\s*learning\b/, /\bml\b/, /\bai\b/, /\bartificial\s*intelligence\b/],
+        patterns: [/\bmachine\s*learning\b/, /\bml\b/, /\bartificial\s*intelligence\b/],
         skill: "Machine Learning",
       },
       {
@@ -365,8 +365,54 @@ export abstract class BaseScraper {
         skill: "Data Science",
       },
       {
-        patterns: [/\bbig\s*data\b/, /\bhadoop\b/, /\bspark\b/],
+        patterns: [/\bbig\s*data\b/, /\bhadoop\b/, /\bspark\b/, /\bkafka\b/],
         skill: "Big Data",
+      },
+      {
+        patterns: [/\bpandas\b/, /\bnumpy\b/, /\bscikit\b/, /\btensorflow\b/, /\bpytorch\b/],
+        skill: "Data Analysis",
+      },
+      {
+        patterns: [/\btableau\b/, /\bpower\s*bi\b/, /\bloker\b/, /\bdata\s*visual\b/],
+        skill: "Data Visualization",
+      },
+
+      // Additional Important Skills
+      {
+        patterns: [/\bjira\b/, /\bconfluence\b/, /\bproject\s*management\b/],
+        skill: "Project Management",
+      },
+      {
+        patterns: [/\bsql\b(?!\s*server)/, /\bquery\b/, /\bdatabase\b/],
+        skill: "SQL",
+      },
+      {
+        patterns: [/\blinux\b/, /\bunix\b/, /\bbash\b/, /\bshell\b/],
+        skill: "Linux",
+      },
+      {
+        patterns: [/\bwebsocket\b/, /\bsocket\.io\b/, /\breal-?time\b/],
+        skill: "WebSockets",
+      },
+      {
+        patterns: [/\bredux\s*saga\b/, /\bredux\s*thunk\b/, /\bstate\s*management\b/],
+        skill: "State Management",
+      },
+      {
+        patterns: [/\bnext\.?js\b/, /\bnextjs\b/, /\bserver\s*side\s*rendering\b/, /\bssr\b/],
+        skill: "Next.js",
+      },
+      {
+        patterns: [/\bgatsbyjs\b/, /\bgatsby\b/, /\bstatic\s*site\b/],
+        skill: "Gatsby",
+      },
+      {
+        patterns: [/\bwebpack\b/, /\bbabel\b/, /\besbuild\b/],
+        skill: "Build Tools",
+      },
+      {
+        patterns: [/\bjson\b/, /\bxml\b/, /\byaml\b/],
+        skill: "Data Formats",
       },
 
       // Specific Job Role Keywords that indicate skills
@@ -404,9 +450,29 @@ export abstract class BaseScraper {
   ): "full-time" | "part-time" | "contract" | "internship" | "remote" {
     const lowerText = text.toLowerCase();
 
-    if (lowerText.includes("intern") || lowerText.includes("internship")) {
+    // Check for internship first (but be more specific to avoid false positives)
+    if (
+      /\binternship\b/.test(lowerText) ||
+      /\bintern\b(?!\s*ational)/.test(lowerText) || // "intern" but not "international"
+      /\bgraduate\s+role\b/.test(lowerText) ||
+      /\bstudent\s+position\b/.test(lowerText)
+    ) {
+      // BUT: Exclude if it's clearly NOT an internship
+      if (
+        /\bsenior\b/.test(lowerText) ||
+        /\bstaff\b/.test(lowerText) ||
+        /\blead\b/.test(lowerText) ||
+        /\bprincipal\b/.test(lowerText) ||
+        /\barchitect\b/.test(lowerText) ||
+        /\bmanager\b/.test(lowerText) ||
+        /\bdirector\b/.test(lowerText) ||
+        /\byears\s+(?:of\s+)?experience\b/.test(lowerText)
+      ) {
+        return "full-time"; // It's a senior/experienced role, not internship
+      }
       return "internship";
     }
+
     if (
       lowerText.includes("contract") ||
       lowerText.includes("freelance") ||
