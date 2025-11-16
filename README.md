@@ -1,4 +1,4 @@
-# Career Crawler
+# CareerK Crawler
 
 An automated job aggregation system that scrapes tech positions from multiple job boards and serves them through a REST API.
 
