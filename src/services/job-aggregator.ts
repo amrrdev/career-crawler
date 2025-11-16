@@ -15,11 +15,11 @@ export class JobAggregator {
   constructor(dbPath?: string, bypassCache: boolean = false) {
     this.database = new Database(dbPath);
     this.scrapers = [
-      // new LinkedInScraper(bypassCache),
-      new IndeedScraper(bypassCache), // 🚀 World-class scraper - 50-100 jobs, 15-30 skills per job
-      // new WuzzufScraper(bypassCache),
-      // new GlassdoorScraper(bypassCache), // Testing with enhanced anti-detection
-      // new BaytScraper(bypassCache), // 🌍 MENA coverage with CRITICAL 7-day filter
+      new LinkedInScraper(bypassCache),
+      new IndeedScraper(bypassCache),
+      new WuzzufScraper(bypassCache),
+      new GlassdoorScraper(bypassCache),
+      new BaytScraper(bypassCache),
     ];
   }
 
@@ -41,30 +41,34 @@ export class JobAggregator {
     console.log("🚀 Starting incremental job aggregation...");
 
     const onJobScraped = async (job: Job) => {
-      totalFetched++;
+      try {
+        totalFetched++;
 
-      // Check in-memory cache first (faster)
-      const signature = this.generateJobSignature(job);
-      if (this.jobSignatureCache.has(signature)) {
-        totalDuplicates++;
-        console.log(`🔄 Duplicate job found (memory), skipping: "${job.title}"`);
-        return;
+        // Check in-memory cache first (faster)
+        const signature = this.generateJobSignature(job);
+        if (this.jobSignatureCache.has(signature)) {
+          totalDuplicates++;
+          return;
+        }
+
+        // Check database for URL duplicates
+        const existsInDb = await this.database.jobExists(job.url);
+        if (existsInDb) {
+          totalDuplicates++;
+          this.jobSignatureCache.add(signature);
+          return;
+        }
+
+        // New job - save it
+        this.jobSignatureCache.add(signature);
+        await this.database.saveJob(job);
+        totalSaved++;
+      } catch (error) {
+        console.error(
+          `Error processing job "${job.title}":`,
+          error instanceof Error ? error.message : "Unknown error"
+        );
       }
-
-      // Check database for URL duplicates
-      const existsInDb = await this.database.jobExists(job.url);
-      if (existsInDb) {
-        totalDuplicates++;
-        this.jobSignatureCache.add(signature); // Add to cache to avoid future DB checks
-        console.log(`� Duplicate job found (database), skipping: "${job.title}"`);
-        return;
-      }
-
-      // New job - save it
-      this.jobSignatureCache.add(signature);
-      await this.database.saveJob(job);
-      totalSaved++;
-      console.log(`� Saved new job: "${job.title}" from ${job.source}`);
     };
 
     for (const scraper of this.scrapers) {
@@ -108,15 +112,39 @@ export class JobAggregator {
   }
 
   public async getJobsBySkills(skills: string[], limit: number = 100): Promise<Job[]> {
-    return this.database.getJobsBySkills(skills, limit);
+    try {
+      return await this.database.getJobsBySkills(skills, limit);
+    } catch (error) {
+      console.error(
+        "Error fetching jobs by skills:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+      return [];
+    }
   }
 
   public async getAllJobs(limit: number = 1000): Promise<Job[]> {
-    return this.database.getAllJobs(limit);
+    try {
+      return await this.database.getAllJobs(limit);
+    } catch (error) {
+      console.error(
+        "Error fetching all jobs:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+      return [];
+    }
   }
 
   public async getJobStats(): Promise<{ total: number; bySource: { [key: string]: number } }> {
-    return this.database.getJobStats();
+    try {
+      return await this.database.getJobStats();
+    } catch (error) {
+      console.error(
+        "Error fetching job stats:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+      return { total: 0, bySource: {} };
+    }
   }
 
   public async searchJobs(filter: JobFilter): Promise<Job[]> {
@@ -146,6 +174,13 @@ export class JobAggregator {
   }
 
   public close(): void {
-    this.database.close();
+    try {
+      this.database.close();
+    } catch (error) {
+      console.error(
+        "Error closing database:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+    }
   }
 }

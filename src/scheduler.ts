@@ -10,36 +10,35 @@ export class JobScheduler {
   }
 
   public start(): void {
-    console.log("Starting job scheduler...");
+    console.log("[Scheduler] Starting job scheduler...");
 
     // Run every hour at minute 0
     this.job = new CronJob(
       "0 * * * *",
       async () => {
-        console.log(`[${new Date().toISOString()}] Starting scheduled job aggregation...`);
+        console.log(`[Scheduler] Starting scheduled aggregation...`);
 
         try {
           const result = await this.aggregator.aggregateJobs();
 
-          console.log(`[${new Date().toISOString()}] Scheduled aggregation completed:`);
-          console.log(`- Total jobs fetched: ${result.totalFetched}`);
-          console.log(`- Total jobs saved: ${result.totalSaved}`);
-          console.log(`- Sources processed: ${result.results.length}`);
+          console.log(
+            `[Scheduler] Completed: ${result.totalSaved} new jobs saved, ${result.totalDuplicates} duplicates`
+          );
 
-          // Log individual source results
+          // Only log failures
           result.results.forEach((sourceResult) => {
-            if (sourceResult.success) {
-              console.log(`  ✓ ${sourceResult.source}: ${sourceResult.jobs.length} jobs`);
-            } else {
-              console.log(`  ✗ ${sourceResult.source}: Failed - ${sourceResult.error}`);
+            if (!sourceResult.success) {
+              console.error(`[Scheduler] ${sourceResult.source} failed: ${sourceResult.error}`);
             }
           });
 
-          // Log current database stats
           const stats = await this.aggregator.getJobStats();
-          console.log(`Database now contains ${stats.total} total jobs`);
+          console.log(`[Scheduler] Database: ${stats.total} total jobs`);
         } catch (error) {
-          console.error(`[${new Date().toISOString()}] Scheduled aggregation failed:`, error);
+          console.error(
+            `[Scheduler] Aggregation failed:`,
+            error instanceof Error ? error.message : "Unknown error"
+          );
         }
       },
       null,
@@ -47,37 +46,46 @@ export class JobScheduler {
       "UTC"
     );
 
-    console.log("Job scheduler started. Will run every hour at minute 0.");
-    console.log("Next run time:", this.job.nextDate().toString());
+    console.log("[Scheduler] Started. Running hourly at minute 0.");
+    console.log("[Scheduler] Next run:", this.job.nextDate().toFormat("yyyy-MM-dd HH:mm:ss"));
 
     // Run immediately on startup
     this.runOnce();
   }
 
   public async runOnce(): Promise<void> {
-    console.log(`[${new Date().toISOString()}] Running job aggregation manually...`);
+    console.log(`[Scheduler] Running manual aggregation...`);
 
     try {
       const result = await this.aggregator.aggregateJobs();
 
-      console.log(`[${new Date().toISOString()}] Manual aggregation completed:`);
-      console.log(`- Total jobs fetched: ${result.totalFetched}`);
-      console.log(`- Total jobs saved: ${result.totalSaved}`);
-      console.log(`- Total duplicates found: ${result.totalDuplicates}`);
+      console.log(
+        `[Scheduler] Manual run completed: ${result.totalSaved} new jobs, ${result.totalDuplicates} duplicates`
+      );
 
       const stats = await this.aggregator.getJobStats();
-      console.log(`Database now contains ${stats.total} total jobs`);
+      console.log(`[Scheduler] Database: ${stats.total} total jobs`);
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Manual aggregation failed:`, error);
+      console.error(
+        `[Scheduler] Manual aggregation failed:`,
+        error instanceof Error ? error.message : "Unknown error"
+      );
     }
   }
 
   public stop(): void {
-    if (this.job) {
-      this.job.stop();
-      console.log("Job scheduler stopped.");
+    try {
+      if (this.job) {
+        this.job.stop();
+        console.log("[Scheduler] Stopped.");
+      }
+      this.aggregator.close();
+    } catch (error) {
+      console.error(
+        "[Scheduler] Error during shutdown:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
     }
-    this.aggregator.close();
   }
 
   public getNextRunTime(): Date | null {

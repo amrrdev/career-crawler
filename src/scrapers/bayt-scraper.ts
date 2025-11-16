@@ -52,7 +52,7 @@ export class BaytScraper extends BaseScraper {
   private antiDetection: AntiDetectionManager;
   private bypassCache: boolean = false;
   private selectors: BaytSelectors;
-  private readonly MAX_JOB_AGE_DAYS = 7; // CRITICAL: User requirement - last 7 days only
+  private readonly MAX_JOB_AGE_DAYS = 14; // Fresh jobs (last 2 weeks)
 
   // MENA countries for Bayt.com (reduced for faster processing)
   private readonly COUNTRIES = ["egypt", "uae"];

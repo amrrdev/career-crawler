@@ -22,7 +22,7 @@ export class WuzzufScraper extends BaseScraper {
   protected baseUrl = "https://wuzzuf.net";
   private antiDetection: AntiDetectionManager;
   private selectors: WuzzufSelectors;
-  private readonly MAX_JOB_AGE_DAYS = 10; // Fresh jobs (last 10 days)
+  private readonly MAX_JOB_AGE_DAYS = 14; // Fresh jobs (last 2 weeks)
   private readonly CONCURRENCY_LIMIT = 3; // Lower for Egypt market
   private bypassCache: boolean = false;
 

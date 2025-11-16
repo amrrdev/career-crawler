@@ -317,22 +317,57 @@ export class AntiDetectionManager {
         page = await browser.newPage();
         await page.setViewport(session.viewport);
         await page.setUserAgent(session.userAgent);
-        await page.setExtraHTTPHeaders({
+
+        // Build headers object
+        const headers: Record<string, string> = {
           "Accept-Language": "en-US,en;q=0.9,fr;q=0.8,ar;q=0.7",
           "Accept-Encoding": "gzip, deflate, br",
           Accept:
             "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        });
+        };
 
-        await page.setRequestInterception(true);
-        page.on("request", (req) => {
-          const resourceType = req.resourceType();
-          if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
-            req.abort();
-          } else {
-            req.continue();
-          }
-        });
+        // Add Referer for Indeed only
+        if (domain.includes("indeed")) {
+          headers["Referer"] = "https://www.indeed.com/";
+        }
+
+        await page.setExtraHTTPHeaders(headers);
+
+        // Indeed-specific: Add realistic cookies and localStorage
+        if (domain.includes("indeed")) {
+          await page.evaluateOnNewDocument(() => {
+            // Add realistic localStorage entries
+            localStorage.setItem("indeed-jobseeker-visitor", JSON.stringify({ hasVisited: true }));
+            localStorage.setItem("indeed-last-visit", Date.now().toString());
+          });
+
+          // Set realistic cookies
+          await page.setCookie(
+            {
+              name: "CTK",
+              value: Math.random().toString(36).substring(2),
+              domain: ".indeed.com",
+            },
+            {
+              name: "indeed_rcc",
+              value: "CTK",
+              domain: ".indeed.com",
+            }
+          );
+        }
+
+        // CRITICAL FIX: Indeed detects resource blocking - only block for specific domains
+        if (!domain.includes("indeed")) {
+          await page.setRequestInterception(true);
+          page.on("request", (req) => {
+            const resourceType = req.resourceType();
+            if (["image", "stylesheet", "font", "media"].includes(resourceType)) {
+              req.abort();
+            } else {
+              req.continue();
+            }
+          });
+        }
 
         let gotoRetries = 2;
         while (gotoRetries >= 0) {
@@ -357,6 +392,16 @@ export class AntiDetectionManager {
           await page.waitForSelector("h1", { timeout: 10000 });
         } catch (e) {
           console.warn(`⚠️  No h1 found on page, proceeding anyway...`);
+        }
+
+        // Indeed-specific: Quick wait for page to load
+        if (domain.includes("indeed")) {
+          await this.sleep(500 + Math.random() * 500); // 0.5-1 second
+
+          // Quick scroll to trigger lazy loading
+          await page.evaluate(() => {
+            window.scrollBy(0, 300);
+          });
         }
 
         // Glassdoor-specific: wait MUCH longer and add cookies

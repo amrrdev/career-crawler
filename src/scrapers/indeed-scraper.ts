@@ -46,7 +46,7 @@ export class IndeedScraper extends BaseScraper {
   private bypassCache: boolean = false;
   private selectors: IndeedSelectors;
   private readonly MAX_JOB_AGE_DAYS = 7; // Fresh jobs only (last 7 days)
-  private readonly CONCURRENCY_LIMIT = 2; // Reduced from 4 to avoid blocking (anti-bot protection)
+  private readonly CONCURRENCY_LIMIT = 2; // Process 2 jobs at a time (balanced speed vs detection)
 
   constructor(bypassCache: boolean = false) {
     super();
@@ -73,16 +73,36 @@ export class IndeedScraper extends BaseScraper {
   protected async fetchPage(url: string): Promise<string> {
     const domain = "indeed.com";
     try {
-      if (!this.bypassCache) {
-        const cached = this.antiDetection.getCachedResponse(url);
-        if (cached) {
+      // CRITICAL: Don't use cache if it might contain CAPTCHA pages
+      const cached = this.antiDetection.getCachedResponse(url);
+      if (cached && !this.bypassCache) {
+        // Check if cached response is a CAPTCHA page
+        if (
+          !cached.toLowerCase().includes("verification") &&
+          !cached.toLowerCase().includes("captcha") &&
+          !cached.toLowerCase().includes("hcaptcha")
+        ) {
           console.log(`📦 Using cached Indeed response...`);
           return cached;
+        } else {
+          console.log(`🚫 Cached page is blocked, fetching fresh...`);
         }
       }
 
       console.log(`🌐 Fetching Indeed page with browser...`);
       const html = await this.antiDetection.fetchPageWithBrowser(url, domain);
+
+      // Check if we got a CAPTCHA page
+      if (
+        html.toLowerCase().includes("verification required") ||
+        html.toLowerCase().includes("additional verification") ||
+        html.toLowerCase().includes("captcha") ||
+        html.toLowerCase().includes("hcaptcha")
+      ) {
+        console.log(`❌ Got CAPTCHA/verification page - Indeed is blocking requests`);
+        this.antiDetection.updateSession(domain, [], true);
+        throw new Error("CAPTCHA detected - scraper blocked by Indeed");
+      }
 
       if (!this.bypassCache) {
         this.antiDetection.setCachedResponse(url, html);
@@ -153,6 +173,9 @@ export class IndeedScraper extends BaseScraper {
 
   private async scrapeJobUrls(searchUrl: string): Promise<string[]> {
     try {
+      // Small delay before search
+      await this.sleep(1000 + Math.random() * 1000); // 1-2 seconds
+
       const html = await this.fetchPage(searchUrl);
       const $ = cheerio.load(html);
       const jobUrls: string[] = [];
@@ -229,6 +252,10 @@ export class IndeedScraper extends BaseScraper {
           jobUrl.indexOf("jk=") + 15
         )}...`
       );
+
+      // Moderate delay between detail page requests
+      await this.sleep(1000 + Math.random() * 1000); // 1-2 seconds
+
       const html = await this.fetchPage(jobUrl);
       const $ = cheerio.load(html);
 
@@ -490,6 +517,16 @@ export class IndeedScraper extends BaseScraper {
 
       console.log("🔍 Starting Indeed two-phase job scraping (LinkedIn-style architecture)...");
 
+      // Visit homepage first to establish legitimate session
+      console.log("🏠 Visiting Indeed homepage to establish session...");
+      try {
+        await this.fetchPage("https://www.indeed.com");
+        console.log("✅ Session established");
+        await this.sleep(2000 + Math.random() * 1000); // Wait 2-3 seconds
+      } catch (error) {
+        console.warn("⚠️  Could not establish session, proceeding anyway...");
+      }
+
       // Search terms focused on ALL tech roles (removed "senior" to get all levels)
       const searchTerms = [
         "software engineer",
@@ -539,23 +576,23 @@ export class IndeedScraper extends BaseScraper {
         "Riyadh, Saudi Arabia",
       ];
 
-      // Shuffle and limit (More searches = more jobs!)
+      // Shuffle and limit - balanced approach
       const shuffledTerms = [...searchTerms].sort(() => Math.random() - 0.5);
       const shuffledLocations = [...locations].sort(() => Math.random() - 0.5);
-      const termsToUse = shuffledTerms.slice(0, 8); // Reduced from 10 to 8 (less aggressive to avoid blocking)
-      const locationsToUse = shuffledLocations.slice(0, 5); // Reduced from 6 to 5
+      const termsToUse = shuffledTerms.slice(0, 6); // Use 6 search terms
+      const locationsToUse = shuffledLocations.slice(0, 4); // Use 4 locations
 
       console.log(`🔍 Indeed search terms: ${termsToUse.join(", ")}`);
       console.log(`📍 Indeed locations: ${locationsToUse.join(", ")}`);
 
       let searchCount = 0;
-      const maxSearches = 16; // 8 terms × 2 locations = 16 searches (balanced)
+      const maxSearches = 12; // 6 terms × 2 locations = 12 searches
       let blockedCount = 0;
       const MAX_BLOCKS = 3; // Stop if blocked 3 times
 
       for (const term of termsToUse) {
         for (const loc of locationsToUse.slice(0, 2)) {
-          // 2 locations per term
+          // Max 2 locations per term
           if (searchCount >= maxSearches || blockedCount >= MAX_BLOCKS) break;
 
           try {
@@ -629,8 +666,8 @@ export class IndeedScraper extends BaseScraper {
 
             searchCount++;
 
-            // Longer delay between searches (5-10 seconds) to avoid blocking
-            const searchDelay = 5000 + Math.random() * 5000;
+            // Moderate delay between searches to avoid blocking
+            const searchDelay = 3000 + Math.random() * 2000; // 3-5 seconds
             console.log(`   ⏳ Waiting ${Math.floor(searchDelay / 1000)}s before next search...`);
             await this.sleep(searchDelay);
           } catch (error) {

@@ -5,8 +5,20 @@ async function main() {
   console.log("==================================");
 
   const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-  const bypassCache = process.env.BYPASS_CACHE === 'true';
+  const bypassCache = process.env.BYPASS_CACHE === "true";
   const server = new JobApiServer(port, bypassCache);
+
+  // Handle unhandled promise rejections
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error("Unhandled Promise Rejection:", reason);
+    // Don't exit - keep server running
+  });
+
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    console.error("Uncaught Exception:", error);
+    // Log but try to continue if possible
+  });
 
   // Handle graceful shutdown
   process.on("SIGINT", () => {
@@ -26,7 +38,7 @@ async function main() {
     console.log("==================================");
     console.log("Job Posting Aggregator is running!");
     console.log("==================================");
-    console.log(`Bypass cache: ${bypassCache ? 'enabled' : 'disabled'}`);
+    console.log(`Bypass cache: ${bypassCache ? "enabled" : "disabled"}`);
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

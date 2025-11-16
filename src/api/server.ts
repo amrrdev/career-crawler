@@ -30,9 +30,11 @@ export class JobApiServer {
       next();
     });
 
-    // Logging middleware
+    // Logging middleware - only log non-health check requests
     this.app.use((req, res, next) => {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+      if (req.path !== "/health") {
+        console.log(`[API] ${req.method} ${req.path}`);
+      }
       next();
     });
   }
@@ -133,15 +135,23 @@ export class JobApiServer {
     // Manually trigger job aggregation
     this.app.post("/api/jobs/refresh", async (req, res) => {
       try {
-        console.log("Manual job refresh triggered via API");
-        await this.scheduler.runOnce();
+        console.log("[API] Manual job refresh triggered");
+
+        // Don't await - let it run in background and return immediately
+        this.scheduler.runOnce().catch((error) => {
+          console.error(
+            "[API] Background refresh error:",
+            error instanceof Error ? error.message : "Unknown error"
+          );
+        });
 
         res.json({
           success: true,
-          message: "Job refresh completed",
+          message: "Job refresh started in background",
           timestamp: new Date().toISOString(),
         });
       } catch (error) {
+        console.error("[API] Refresh trigger error:", error);
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
