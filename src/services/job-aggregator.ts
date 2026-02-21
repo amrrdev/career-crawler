@@ -1,4 +1,4 @@
-import { Database } from "../database/database";
+import { PostgresDatabase } from "../database/postgres-db";
 import { BaseScraper } from "../scrapers/base-scraper";
 import { LinkedInScraper } from "../scrapers/linkedin-scraper";
 import { WuzzufScraper } from "../scrapers/wuzzuf-scraper";
@@ -8,12 +8,12 @@ import { BaytScraper } from "../scrapers/bayt-scraper";
 import { Job, JobFilter, ScrapingResult } from "../types/job.types";
 
 export class JobAggregator {
-  private database: Database;
+  private database: PostgresDatabase;
   private scrapers: BaseScraper[];
   private jobSignatureCache = new Set<string>();
 
-  constructor(dbPath?: string, bypassCache: boolean = false) {
-    this.database = new Database(dbPath);
+  constructor(connectionString?: string, bypassCache: boolean = false) {
+    this.database = new PostgresDatabase(connectionString);
     this.scrapers = [
       new LinkedInScraper(bypassCache),
       new IndeedScraper(bypassCache),
@@ -23,9 +23,13 @@ export class JobAggregator {
     ];
   }
 
+  public async initialize(): Promise<void> {
+    await this.database.initialize();
+  }
+
   public async aggregateJobs(
     searchQuery?: string,
-    location?: string
+    location?: string,
   ): Promise<{
     totalFetched: number;
     totalSaved: number;
@@ -66,7 +70,7 @@ export class JobAggregator {
       } catch (error) {
         console.error(
           `Error processing job "${job.title}":`,
-          error instanceof Error ? error.message : "Unknown error"
+          error instanceof Error ? error.message : "Unknown error",
         );
       }
     };
@@ -100,7 +104,7 @@ export class JobAggregator {
       `🎉 Job aggregation completed!\n` +
         `   📊 Total fetched: ${totalFetched}\n` +
         `   💾 Jobs saved: ${totalSaved}\n` +
-        `   🔄 Duplicates found: ${totalDuplicates}`
+        `   🔄 Duplicates found: ${totalDuplicates}`,
     );
 
     return {
@@ -117,7 +121,7 @@ export class JobAggregator {
     } catch (error) {
       console.error(
         "Error fetching jobs by skills:",
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
       return [];
     }
@@ -129,7 +133,7 @@ export class JobAggregator {
     } catch (error) {
       console.error(
         "Error fetching all jobs:",
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
       return [];
     }
@@ -141,7 +145,7 @@ export class JobAggregator {
     } catch (error) {
       console.error(
         "Error fetching job stats:",
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
       return { total: 0, bySource: {} };
     }
@@ -173,13 +177,13 @@ export class JobAggregator {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  public close(): void {
+  public async close(): Promise<void> {
     try {
-      this.database.close();
+      await this.database.close();
     } catch (error) {
       console.error(
         "Error closing database:",
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
     }
   }

@@ -1,10 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { JobApiServer } from "./api/server";
 
 async function main() {
   console.log("Starting Job Posting Aggregator...");
   console.log("==================================");
 
-  const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+  const port = process.env.PORT ? parseInt(process.env.PORT) : 3010;
   const bypassCache = process.env.BYPASS_CACHE === "true";
   const server = new JobApiServer(port, bypassCache);
 

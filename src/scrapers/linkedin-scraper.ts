@@ -29,9 +29,12 @@ export class LinkedInScraper extends BaseScraper {
     this.bypassCache = bypassCache;
     this.selectors = this.loadSelectors();
 
-    setInterval(() => {
-      this.antiDetection.cleanup();
-    }, 5 * 60 * 1000);
+    setInterval(
+      () => {
+        this.antiDetection.cleanup();
+      },
+      5 * 60 * 1000,
+    );
   }
 
   private loadSelectors(): LinkedInSelectors {
@@ -142,7 +145,7 @@ export class LinkedInScraper extends BaseScraper {
   public async scrapeJobs(
     onJobScraped: (job: Job) => Promise<void>,
     searchQuery?: string,
-    location?: string
+    location?: string,
   ): Promise<ScrapingResult> {
     try {
       const jobUrlCache = new Set<string>();
@@ -160,8 +163,18 @@ export class LinkedInScraper extends BaseScraper {
         "node.js developer",
       ];
       const locations = [
-        "Remote", "United States", "United Kingdom", "Canada", "Germany", "Australia", "Netherlands", "France",
-        "Egypt", "Saudi Arabia", "United Arab Emirates", "Qatar"
+        "Remote",
+        "United States",
+        "United Kingdom",
+        "Canada",
+        "Germany",
+        "Australia",
+        "Netherlands",
+        "France",
+        "Egypt",
+        "Saudi Arabia",
+        "United Arab Emirates",
+        "Qatar",
       ];
 
       const shuffledLocations = [...locations].sort(() => Math.random() - 0.5);
@@ -180,17 +193,18 @@ export class LinkedInScraper extends BaseScraper {
           const jobUrls = await this.scrapeJobUrls(searchUrl);
           console.log(`   Found ${jobUrls.length} job URLs`);
 
-          const newUrls = jobUrls.filter(url => !jobUrlCache.has(url));
-          newUrls.forEach(url => jobUrlCache.add(url));
+          const newUrls = jobUrls.filter((url) => !jobUrlCache.has(url));
+          newUrls.forEach((url) => jobUrlCache.add(url));
 
           for (let i = 0; i < newUrls.length; i += this.CONCURRENCY_LIMIT) {
             const batch = newUrls.slice(i, i + this.CONCURRENCY_LIMIT);
-            const promises = batch.map(url => this.scrapeJobDetails(url));
+            const promises = batch.map((url) => this.scrapeJobDetails(url));
             const results = await Promise.all(promises);
 
             for (const job of results) {
               if (job) {
-                const jobAgeDays = (new Date().getTime() - job.postedDate.getTime()) / (1000 * 3600 * 24);
+                const jobAgeDays =
+                  (new Date().getTime() - job.postedDate.getTime()) / (1000 * 3600 * 24);
                 if (jobAgeDays <= this.MAX_JOB_AGE_DAYS) {
                   await onJobScraped(job);
                   totalFound++;
@@ -204,9 +218,7 @@ export class LinkedInScraper extends BaseScraper {
         if (searchCount >= maxSearches) break;
       }
 
-      console.log(
-        `🎉 LinkedIn scraping completed. Found and processed ${totalFound} fresh jobs.`
-      );
+      console.log(`🎉 LinkedIn scraping completed. Found and processed ${totalFound} fresh jobs.`);
 
       return {
         jobs: [], // Jobs are now processed via callback

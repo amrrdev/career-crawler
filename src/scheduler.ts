@@ -4,9 +4,16 @@ import { JobAggregator } from "./services/job-aggregator";
 export class JobScheduler {
   private aggregator: JobAggregator;
   private job: CronJob | null = null;
+  private initialized: boolean = false;
 
   constructor(bypassCache: boolean = false) {
     this.aggregator = new JobAggregator(undefined, bypassCache);
+  }
+
+  public async initialize(): Promise<void> {
+    if (this.initialized) return;
+    await this.aggregator.initialize();
+    this.initialized = true;
   }
 
   public start(): void {
@@ -19,10 +26,14 @@ export class JobScheduler {
         console.log(`[Scheduler] Starting scheduled aggregation...`);
 
         try {
+          if (!this.initialized) {
+            await this.initialize();
+          }
+
           const result = await this.aggregator.aggregateJobs();
 
           console.log(
-            `[Scheduler] Completed: ${result.totalSaved} new jobs saved, ${result.totalDuplicates} duplicates`
+            `[Scheduler] Completed: ${result.totalSaved} new jobs saved, ${result.totalDuplicates} duplicates`,
           );
 
           // Only log failures
@@ -37,13 +48,13 @@ export class JobScheduler {
         } catch (error) {
           console.error(
             `[Scheduler] Aggregation failed:`,
-            error instanceof Error ? error.message : "Unknown error"
+            error instanceof Error ? error.message : "Unknown error",
           );
         }
       },
       null,
       true,
-      "UTC"
+      "UTC",
     );
 
     console.log("[Scheduler] Started. Running hourly at minute 0.");
@@ -57,10 +68,14 @@ export class JobScheduler {
     console.log(`[Scheduler] Running manual aggregation...`);
 
     try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+
       const result = await this.aggregator.aggregateJobs();
 
       console.log(
-        `[Scheduler] Manual run completed: ${result.totalSaved} new jobs, ${result.totalDuplicates} duplicates`
+        `[Scheduler] Manual run completed: ${result.totalSaved} new jobs, ${result.totalDuplicates} duplicates`,
       );
 
       const stats = await this.aggregator.getJobStats();
@@ -68,22 +83,22 @@ export class JobScheduler {
     } catch (error) {
       console.error(
         `[Scheduler] Manual aggregation failed:`,
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
     }
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
     try {
       if (this.job) {
         this.job.stop();
         console.log("[Scheduler] Stopped.");
       }
-      this.aggregator.close();
+      await this.aggregator.close();
     } catch (error) {
       console.error(
         "[Scheduler] Error during shutdown:",
-        error instanceof Error ? error.message : "Unknown error"
+        error instanceof Error ? error.message : "Unknown error",
       );
     }
   }

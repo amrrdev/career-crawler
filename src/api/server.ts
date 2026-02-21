@@ -8,6 +8,7 @@ export class JobApiServer {
   private aggregator: JobAggregator;
   private scheduler: JobScheduler;
   private port: number;
+  private initialized: boolean = false;
 
   constructor(port: number = 3000, bypassCache: boolean = false) {
     this.app = express();
@@ -17,6 +18,13 @@ export class JobApiServer {
 
     this.setupMiddleware();
     this.setupRoutes();
+  }
+
+  private async initialize(): Promise<void> {
+    if (this.initialized) return;
+    await this.aggregator.initialize();
+    await this.scheduler.initialize();
+    this.initialized = true;
   }
 
   private setupMiddleware(): void {
@@ -205,8 +213,10 @@ export class JobApiServer {
   }
 
   public async start(): Promise<void> {
+    await this.initialize();
+    
     return new Promise((resolve) => {
-      this.app.listen(this.port, () => {
+      this.app.listen(this.port, async () => {
         console.log(`Job API server running on port ${this.port}`);
         console.log(`Available endpoints:`);
         console.log(`  GET /health - Health check`);
@@ -225,8 +235,8 @@ export class JobApiServer {
     });
   }
 
-  public stop(): void {
-    this.scheduler.stop();
-    this.aggregator.close();
+  public async stop(): Promise<void> {
+    await this.scheduler.stop();
+    await this.aggregator.close();
   }
 }
