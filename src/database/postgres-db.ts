@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Client, Pool, PoolClient, QueryResult } from "pg";
 import { Job, JobSource, JobFilter } from "../types/job.types";
 
@@ -26,89 +27,13 @@ export class PostgresDatabase {
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
-    const enablePgcrypto = `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`;
-
-    const createJobTypeEnum = `
-      DO $$
-      BEGIN
-        CREATE TYPE "JobTypeEnum" AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE', 'INTERNSHIP');
-      EXCEPTION
-        WHEN duplicate_object THEN NULL;
-      END $$;
-    `;
-
-    const fixSkillsTable = `
-      ALTER TABLE IF EXISTS skills
-      ALTER COLUMN id SET DEFAULT gen_random_uuid(),
-      ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
-      ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
-    `;
-
-    const createScrapedJobsTable = `
-      CREATE TABLE IF NOT EXISTS scraped_jobs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        url TEXT UNIQUE NOT NULL,
-        source TEXT NOT NULL,
-        title TEXT NOT NULL,
-        company_name TEXT NOT NULL,
-        location TEXT,
-        description TEXT,
-        salary TEXT,
-        job_type "JobTypeEnum",
-        posted_at TIMESTAMP(3),
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-    `;
-
-    const createScrapedJobSkillsTable = `
-      CREATE TABLE IF NOT EXISTS scraped_job_skills (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        job_id UUID NOT NULL REFERENCES scraped_jobs(id) ON DELETE CASCADE,
-        skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
-        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(job_id, skill_id)
-      );
-    `;
-
-    const fixScrapedJobsTable = `
-      ALTER TABLE IF EXISTS scraped_jobs
-      ALTER COLUMN id SET DEFAULT gen_random_uuid(),
-      ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
-      ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
-    `;
-
-    const fixScrapedJobSkillsTable = `
-      ALTER TABLE IF EXISTS scraped_job_skills
-      ALTER COLUMN id SET DEFAULT gen_random_uuid(),
-      ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
-    `;
-
-    const createIndexes = `
-      CREATE INDEX IF NOT EXISTS idx_scraped_jobs_source ON scraped_jobs(source);
-      CREATE INDEX IF NOT EXISTS idx_scraped_jobs_company_name ON scraped_jobs(company_name);
-      CREATE INDEX IF NOT EXISTS idx_scraped_jobs_posted_at ON scraped_jobs(posted_at);
-      CREATE INDEX IF NOT EXISTS idx_scraped_job_skills_job_id ON scraped_job_skills(job_id);
-      CREATE INDEX IF NOT EXISTS idx_scraped_job_skills_skill_id ON scraped_job_skills(skill_id);
-    `;
-
     const client = await this.pool.connect();
     try {
-      await client.query("BEGIN");
-      await client.query(enablePgcrypto);
-      await client.query(createJobTypeEnum);
-      await client.query(fixSkillsTable);
-      await client.query(createScrapedJobsTable);
-      await client.query(createScrapedJobSkillsTable);
-      await client.query(fixScrapedJobsTable);
-      await client.query(fixScrapedJobSkillsTable);
-      await client.query(createIndexes);
-      await client.query("COMMIT");
+      await client.query("SELECT 1");
       this.isInitialized = true;
-      console.log("[PostgreSQL] Database initialized successfully");
+      console.log("[PostgreSQL] Database connection verified");
     } catch (error) {
-      await client.query("ROLLBACK");
-      console.error("[PostgreSQL] Failed to initialize database:", error);
+      console.error("[PostgreSQL] Failed to verify database connection:", error);
       throw error;
     } finally {
       client.release();
@@ -143,9 +68,10 @@ export class PostgresDatabase {
     try {
       await client.query("BEGIN");
 
+      const newJobId = randomUUID();
       const jobResult = await client.query(
-        `INSERT INTO scraped_jobs (url, source, title, company_name, location, description, salary, job_type, posted_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO scraped_jobs (id, url, source, title, company_name, location, description, salary, job_type, posted_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
          ON CONFLICT (url) DO UPDATE SET
            title = EXCLUDED.title,
            company_name = EXCLUDED.company_name,
@@ -157,6 +83,7 @@ export class PostgresDatabase {
            updated_at = CURRENT_TIMESTAMP
          RETURNING id`,
         [
+          newJobId,
           job.url,
           job.source,
           job.title,
@@ -176,21 +103,22 @@ export class PostgresDatabase {
           const normalizedSkill = skillName.trim();
           if (!normalizedSkill) continue;
 
+          const skillIdCandidate = randomUUID();
           const skillResult = await client.query(
-            `INSERT INTO skills (name, created_at, updated_at) 
-             VALUES ($1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `INSERT INTO skills (id, name, created_at, updated_at) 
+             VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
              ON CONFLICT (name) DO UPDATE SET updated_at = CURRENT_TIMESTAMP
              RETURNING id`,
-            [normalizedSkill],
+            [skillIdCandidate, normalizedSkill],
           );
 
           const skillId = skillResult.rows[0].id;
 
           await client.query(
-            `INSERT INTO scraped_job_skills (job_id, skill_id)
-             VALUES ($1, $2)
+            `INSERT INTO scraped_job_skills (id, job_id, skill_id, created_at)
+             VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
              ON CONFLICT DO NOTHING`,
-            [jobId, skillId],
+            [randomUUID(), jobId, skillId],
           );
         }
       }
