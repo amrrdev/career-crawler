@@ -31,7 +31,10 @@ export class AntiDetectionManager {
   private readonly SESSION_COOLDOWN = 30 * 60 * 1000; // 30 minutes
   private activeBrowsers: number = 0;
   private readonly MAX_CONCURRENT_BROWSERS = 2; // Limit concurrent browsers
-  private browserQueue: Promise<any> = Promise.resolve(); // Sequential browser operations
+  private browserQueue: Promise<void> = Promise.resolve(); // Sequential browser operations
+  private readonly PROTOCOL_TIMEOUT_MS = 120000;
+  private readonly NAVIGATION_TIMEOUT_MS = 90000;
+  private readonly PAGE_OPERATION_TIMEOUT_MS = 30000;
 
   // Realistic user agents and viewports from different browsers and OS
   private userAgents = [

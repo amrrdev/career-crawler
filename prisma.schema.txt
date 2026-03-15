@@ -1,0 +1,520 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model JobSeeker {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  password        String
+
+  firstName       String    @map("first_name")
+  lastName        String    @map("last_name")
+  profileImageUrl String?   @map("profile_image_url") @db.VarChar(500)
+
+  isActive        Boolean   @default(true) @map("is_active")
+  isVerified      Boolean   @default(false) @map("is_verified")
+
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  profile JobSeekerProfile?
+  jobSeekerNotificationPreference JobSeekerNotificationPreference?
+
+  educations Education[]
+  workExperiences WorkExperience[]
+  jobSeekerSkills JobSeekerSkill[]
+  cv CV?
+  cvParseResult   CvParseResult?
+  jobBookmarks    JobBookmark[]
+  applications Application[]
+  skillGapAnalyses SkillGapAnalysis[]
+  directJobMatches  DirectJobMatch[]  @relation("DirectJobMatches")
+  scrapedJobMatches ScrapedJobMatch[] @relation("ScrapedJobMatches")
+
+
+  @@index([isActive])
+  @@index([isActive, isVerified])
+  @@map("job_seekers")
+}
+
+model Company {
+  id                   String      @id @default(uuid()) @db.Uuid
+  email                String      @unique
+  password             String
+
+  name                 String
+  description          String?     @db.Text
+  logoUrl              String?     @map("logo_url") @db.VarChar(500)
+  coverUrl             String?     @map("cover_url") @db.VarChar(500)
+
+  industry             String
+  size                 CompanySize
+  type                 CompanyType
+  headquartersLocation String?     @map("headquarters_location") @db.VarChar(255)
+  foundedYear          Int?        @map("founded_year")
+  websiteUrl           String?     @map("website_url") @db.VarChar(500)
+
+  benefits             String?     @db.Text
+
+  linkedIn             String?     @map("linked_in") @db.VarChar(500)
+  facebook             String?     @db.VarChar(500)
+  twitter              String?     @db.VarChar(500)
+
+  isActive             Boolean     @default(true) @map("is_active")
+  isVerified           Boolean     @default(false) @map("is_verified")
+
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  directJobs DirectJob[]
+
+  @@index([isActive])
+  @@index([isActive, createdAt])
+  @@map("companies")
+}
+
+model JobSeekerProfile {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  jobSeekerId        String                  @unique @db.Uuid              @map("job_seeker_id")
+  title              String
+  cvEmail            String                  @unique                       @map("cv_email")
+  phone              String
+  summary            String?                 @db.Text
+  location           String?
+  availabilityStatus AvailabilityStatusEnum  @map("availability_status")
+  expectedSalary     Int?                    @map("expected_salary")
+  workPreference     WorkPreferenceEnum      @map("work_preference")
+  preferredJobTypes  JobTypeEnum[]           @map("preferred_job_types")
+  yearsOfExperience  Float?                  @map("years_of_experience")
+  noticePeriod       Int?                    @map("notice_period")
+  linkedinUrl        String?                 @db.VarChar(500)              @map("linkedin_url")
+  portfolioUrl       String?                 @db.VarChar(500)              @map("portfolio_url")
+  githubUrl          String?                 @db.VarChar(500)              @map("github_url")
+  createdAt          DateTime                @default(now())               @map("created_at")
+  updatedAt          DateTime                @updatedAt                    @map("updated_at")
+  jobSeeker          JobSeeker               @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@index([availabilityStatus])
+  @@index([workPreference])
+  @@index([location])
+  @@index([yearsOfExperience])
+  @@index([noticePeriod])
+  @@map("job_seeker_profiles")
+}
+
+model Education {
+  id              String          @id @default(uuid()) @db.Uuid
+  jobSeekerId     String          @db.Uuid @map("job_seeker_id")
+  institutionName String          @map("institution_name") @db.VarChar(255)
+  degreeType      DegreeTypeEnum @map("degree_type")
+  fieldOfStudy    String          @map("field_of_study") @db.VarChar(255)
+  startDate       DateTime        @map("start_date") @db.Date
+  endDate         DateTime?       @map("end_date") @db.Date
+  gpa             Float?
+  isCurrent       Boolean         @default(false) @map("is_current")
+  description     String?         @db.Text
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  jobSeeker       JobSeeker       @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@index([jobSeekerId])
+  @@index([jobSeekerId, isCurrent, startDate])
+  @@unique([jobSeekerId, institutionName, degreeType, fieldOfStudy])
+  @@map("educations")
+}
+
+model WorkExperience {
+  id              String        @id @default(uuid()) @db.Uuid
+  jobSeekerId     String        @db.Uuid @map("job_seeker_id")
+  companyName     String        @map("company_name") @db.VarChar(255)
+  jobTitle        String        @map("job_title") @db.VarChar(255)
+  location        String?       @db.VarChar(255)
+  startDate       DateTime      @map("start_date") @db.Date
+  endDate         DateTime?     @map("end_date") @db.Date
+  isCurrent       Boolean       @default(false) @map("is_current")
+  description     String?       @db.Text
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  jobSeeker       JobSeeker     @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@index([jobSeekerId])
+  @@index([jobSeekerId, isCurrent, startDate])
+  @@unique([jobSeekerId, companyName, jobTitle, startDate])
+  @@map("work_experiences")
+}
+
+model Skill {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(255)
+  aliases     Json?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  jobSeekerSkills JobSeekerSkill[]
+  scrapedJobSkills ScrapedJobSkill[]
+  directJobSkills DirectJobSkill[]
+
+  @@map("skills")
+}
+
+model JobSeekerSkill {
+  id            String   @id @default(uuid()) @db.Uuid
+  jobSeekerId   String   @db.Uuid @map("job_seeker_id")
+  skillId       String   @db.Uuid @map("skill_id")
+  verified      Boolean  @default(true)
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  jobSeeker     JobSeeker @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+  skill         Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobSeekerId, skillId])
+  @@index([jobSeekerId])
+  @@index([jobSeekerId, createdAt])
+  @@map("job_seeker_skills")
+}
+
+model CV {
+  id          String    @id @default(uuid()) @db.Uuid
+  jobSeekerId String    @unique @db.Uuid @map("job_seeker_id")
+  key         String
+  fileName    String    @map("file_name")
+  mimeType    String    @map("mime_type")
+  uploadedAt  DateTime  @default(now()) @map("uploaded_at")
+
+  jobSeeker   JobSeeker @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@map("cvs")
+}
+
+
+model CvParseResult {
+  id             String        @id @default(uuid()) @db.Uuid
+  jobSeekerId    String        @unique @db.Uuid @map("job_seeker_id")
+  cvKey          String        @map("cv_key")
+  status         CvParseStatusEnum @default(PENDING)
+
+  parsedData     Json?         @map("parsed_data")
+  parsedAt       DateTime?     @map("parsed_at")
+
+  errorMessage   String?       @map("error_message")
+
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  jobSeeker      JobSeeker     @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@map("cv_parse_results")
+}
+
+model ScrapedJob {
+  id              String   @id @default(uuid()) @db.Uuid
+  url             String   @unique
+  source          String
+  title           String
+  companyName     String   @map("company_name")
+  location        String?
+  description     String?  @db.Text
+  salary          String?
+  jobType         JobTypeEnum? @map("job_type")
+
+  postedAt        DateTime? @map("posted_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  skills          ScrapedJobSkill[]
+  matches ScrapedJobMatch[]
+
+
+  @@index([source])
+  @@index([companyName])
+  @@index([postedAt])
+  @@map("scraped_jobs")
+}
+
+model ScrapedJobSkill {
+  id          String   @id @default(uuid()) @db.Uuid
+  jobId       String   @db.Uuid @map("job_id")
+  skillId     String   @db.Uuid @map("skill_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  job         ScrapedJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill       Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillId])
+  @@map("scraped_job_skills")
+}
+
+model DirectJob {
+  id                String   @id @default(uuid()) @db.Uuid
+  companyId         String   @db.Uuid @map("company_id")
+  title             String
+  description       String   @db.Text
+  requirements      String?  @db.Text
+  responsibilities  String?  @db.Text
+  location          String?
+  salaryMin         Int?     @map("salary_min")
+  salaryMax         Int?     @map("salary_max")
+  jobType           JobTypeEnum @map("job_type")
+  workPreference    WorkPreferenceEnum @map("work_preference")
+  experienceLevel   ExperienceLevelEnum  @map("experience_level")
+  status            DirectJobStatusEnum @default(DRAFT)
+  deadline          DateTime?
+  publishedAt       DateTime? @map("published_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  skills            DirectJobSkill[]
+  applications Application[]
+  matches DirectJobMatch[]
+
+
+  @@index([companyId])
+  @@index([companyId, createdAt])
+  @@index([status])
+  @@index([status, publishedAt])
+  @@map("direct_jobs")
+}
+
+model DirectJobSkill {
+  id          String   @id @default(uuid()) @db.Uuid
+  jobId       String   @db.Uuid @map("job_id")
+  skillId     String   @db.Uuid @map("skill_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  job         DirectJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skill       Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillId])
+  @@map("direct_job_skills")
+}
+
+
+model DirectJobMatch {
+  id                   String    @id @default(uuid()) @db.Uuid
+  directJobId          String    @db.Uuid @map("direct_job_id")
+  jobSeekerId          String    @db.Uuid @map("job_seeker_id")
+
+  matchScore           Decimal   @map("match_score") @db.Decimal(5, 2)
+
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  directJob            DirectJob @relation(fields: [directJobId], references: [id], onDelete: Cascade)
+  jobSeeker            JobSeeker @relation("DirectJobMatches", fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@unique([directJobId, jobSeekerId])
+  @@index([jobSeekerId, matchScore])
+  @@map("direct_job_matches")
+}
+
+model ScrapedJobMatch {
+  id                   String     @id @default(uuid()) @db.Uuid
+  scrapedJobId         String     @db.Uuid @map("scraped_job_id")
+  jobSeekerId          String     @db.Uuid @map("job_seeker_id")
+
+  matchScore           Decimal    @map("match_score") @db.Decimal(5, 2)
+
+  createdAt            DateTime   @default(now()) @map("created_at")
+  updatedAt            DateTime   @updatedAt @map("updated_at")
+
+  scrapedJob           ScrapedJob @relation(fields: [scrapedJobId], references: [id], onDelete: Cascade)
+  jobSeeker            JobSeeker  @relation("ScrapedJobMatches", fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@unique([scrapedJobId, jobSeekerId])
+  @@index([scrapedJobId, matchScore])
+  @@map("scraped_job_matches")
+}
+
+
+
+model SkillGapAnalysis {
+  id              String                 @id @default(uuid()) @db.Uuid
+  jobSeekerId     String                 @db.Uuid @map("job_seeker_id")
+  targetRole      String                 @map("target_role")
+
+  status          AnalysisStatusEnum     @default(PROCESSING)
+
+  cvScore         Float?                 @map("cv_score")
+  strengths       String[]
+  gaps            Json?
+  recommendations String[]
+
+  createdAt       DateTime               @default(now()) @map("created_at")
+  completedAt     DateTime?              @map("completed_at")
+
+  jobSeeker       JobSeeker              @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@index([jobSeekerId, createdAt])
+  @@index([status])
+  @@map("skill_gap_analyses")
+}
+
+model JobBookmark {
+  id          String   @id @default(uuid()) @db.Uuid
+  jobSeekerId String   @db.Uuid @map("job_seeker_id")
+  jobId       String   @db.Uuid @map("job_id")
+  jobSource   JobSourceEnum @map("job_source")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  jobSeeker   JobSeeker @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@unique([jobSeekerId, jobId, jobSource])
+  @@index([jobSeekerId])
+  @@index([jobSeekerId, createdAt])
+  @@map("job_bookmarks")
+}
+
+
+model Application {
+  id              String                 @id @default(uuid()) @db.Uuid
+  jobSeekerId     String                 @db.Uuid @map("job_seeker_id")
+  directJobId     String                 @db.Uuid @map("direct_job_id")
+
+  status          ApplicationStatusEnum  @default(PENDING)
+  appliedAt       DateTime               @default(now()) @map("applied_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  jobSeeker       JobSeeker              @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+  directJob       DirectJob              @relation(fields: [directJobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobSeekerId, directJobId])
+  @@index([directJobId])
+  @@index([directJobId, appliedAt])
+  @@index([jobSeekerId])
+  @@index([jobSeekerId, updatedAt])
+  @@index([status])
+  @@map("applications")
+
+}
+
+model JobSeekerNotificationPreference {
+  id                                    String    @id @default(uuid()) @db.Uuid
+  jobSeekerId                           String    @unique @db.Uuid @map("job_seeker_id")
+
+  jobMatchNotificationsEnabled          Boolean   @default(true) @map("job_match_notifications_enabled")
+  applicationStatusNotificationsEnabled Boolean   @default(true) @map("application_status_notifications_enabled")
+
+  createdAt                             DateTime  @default(now()) @map("created_at")
+  updatedAt                             DateTime  @updatedAt @map("updated_at")
+
+  jobSeeker                             JobSeeker @relation(fields: [jobSeekerId], references: [id], onDelete: Cascade)
+
+  @@map("job_seeker_notification_preferences")
+
+}
+
+enum AnalysisStatusEnum {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum JobSourceEnum {
+  DIRECT
+  SCRAPED
+}
+
+enum ApplicationStatusEnum {
+  PENDING
+  REVIEWED
+  SHORTLISTED
+  INTERVIEW_SCHEDULED
+  REJECTED
+  HIRED
+  WITHDRAWN
+}
+
+enum ExperienceLevelEnum {
+  ENTRY        // 0-1 years
+  JUNIOR       // 1-2 years
+  MID          // 2-4 years
+  SENIOR       // 4-6 years
+  LEAD         // 6+ years
+  MANAGER      // 8+ years
+}
+
+enum DirectJobStatusEnum {
+  DRAFT
+  PUBLISHED
+  PAUSED
+  CLOSED
+  FILLED
+}
+
+enum CvParseStatusEnum {
+  PENDING
+  COMPLETED
+  CONFIRMED
+  FAILED
+}
+
+
+enum DegreeTypeEnum {
+  HIGH_SCHOOL
+  ASSOCIATE
+  BACHELOR
+  MASTER
+  PHD
+  BOOTCAMP
+  CERTIFICATION
+  OTHER
+}
+
+
+enum JobTypeEnum {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  FREELANCE
+  INTERNSHIP
+}
+
+enum AvailabilityStatusEnum {
+  OPEN_TO_WORK
+  NOT_LOOKING
+  PASSIVELY_LOOKING
+}
+
+enum WorkPreferenceEnum {
+  ONSITE
+  REMOTE
+  HYBRID
+  ANY
+}
+
+enum CompanyType {
+  STARTUP
+  SCALE_UP
+  ENTERPRISE
+  NON_PROFIT
+  GOVERNMENT
+}
+
+enum CompanySize {
+  SIZE_1_50
+  SIZE_51_200
+  SIZE_201_1000
+  SIZE_1000_PLUS
+}

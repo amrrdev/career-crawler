@@ -65,8 +65,10 @@ Average extraction: 15-30 skills per job posting.
 Uses **node-cron** for automated execution:
 
 - Runs hourly at minute 0
+- Can be overridden with `SCHEDULER_CRON` for testing
 - Executes immediately on startup
 - Processes all active scrapers sequentially
+- Triggers the matcher after every completed scrape run
 - Logs summary statistics (new jobs, duplicates, failures)
 
 ### Database Layer
@@ -86,6 +88,7 @@ GET  /api/jobs/skills/:skills     # Filter by skills (comma-separated)
 POST /api/jobs/search             # Advanced search with filters
 GET  /api/stats                   # Database statistics by source
 POST /api/jobs/refresh            # Trigger manual scraping (async)
+POST /api/matcher/trigger         # Trigger matcher for recent scraped jobs
 GET  /api/skills                  # List all extracted skills
 ```
 
@@ -134,6 +137,32 @@ Server starts on port 3000 (configurable via `PORT` env variable).
 
 - `PORT` - API server port (default: 3000)
 - `BYPASS_CACHE` - Disable caching when set to 'true'
+- `SCHEDULER_CRON` - Cron expression for automated runs in UTC (default: `0 * * * *`)
+- `SCHEDULER_TEST_MODE` - Set to `matcher-only` to skip scraping and trigger matcher immediately for testing
+- `SCHEDULER_TEST_WINDOW_MINUTES` - Recent window used in `matcher-only` test mode (default: `60`)
+- `MATCHER_BASE_URL` - Matcher service base URL, for example `http://localhost:8000`
+- `MATCHER_SCRAPED_JOBS_URL` - Optional full override for the scraped jobs matcher endpoint
+
+### Matcher Integration
+
+After each completed scrape finishes, the scraper sends a `POST` request to the matcher at
+`/match/scraped-jobs` with this payload:
+
+```json
+{
+  "since": "2026-03-09T10:00:00.000Z",
+  "until": "2026-03-09T10:12:34.000Z",
+  "requestId": "scraper-1741515151000-uuid"
+}
+```
+
+If matcher configuration is missing or the request fails, the scraper logs the issue and continues.
+
+For testing, you have two faster options:
+
+- Set `SCHEDULER_CRON=*/5 * * * *` to run every 5 minutes in UTC
+- Set `SCHEDULER_TEST_MODE=matcher-only` to skip scraping and trigger the matcher immediately on each scheduler run
+- Call `POST /api/matcher/trigger` with an optional JSON body like `{ "minutes": 15 }` to trigger the matcher immediately for recently scraped jobs
 
 ## Error Handling
 

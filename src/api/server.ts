@@ -54,7 +54,10 @@ export class JobApiServer {
         status: "healthy",
         timestamp: new Date().toISOString(),
         scheduler: {
+          cron: this.scheduler.getCronExpression(),
           isRunning: this.scheduler.isRunning(),
+          runInProgress: this.scheduler.isAggregationInProgress(),
+          testMode: this.scheduler.getTestMode(),
           nextRun: this.scheduler.getNextRunTime(),
         },
       });
@@ -155,11 +158,51 @@ export class JobApiServer {
 
         res.json({
           success: true,
-          message: "Job refresh started in background",
+          message: "Job refresh started in background. Matcher will be triggered after the scrape finishes.",
           timestamp: new Date().toISOString(),
         });
       } catch (error) {
         console.error("[API] Refresh trigger error:", error);
+        res.status(500).json({
+          success: false,
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+      }
+    });
+
+    // Manually trigger matcher for a recent time window
+    this.app.post("/api/matcher/trigger", async (req, res) => {
+      try {
+        const rawMinutes = req.body?.minutes;
+        const minutes =
+          typeof rawMinutes === "number"
+            ? rawMinutes
+            : rawMinutes !== undefined
+              ? Number(rawMinutes)
+              : 60;
+
+        if (!Number.isFinite(minutes) || minutes <= 0) {
+          res.status(400).json({
+            success: false,
+            error: "minutes must be a positive number",
+          });
+          return;
+        }
+
+        const response = await this.scheduler.triggerMatcherForRecentWindow(minutes);
+
+        res.json({
+          success: true,
+          triggered: Boolean(response),
+          windowMinutes: minutes,
+          message: response
+            ? "Matcher trigger accepted"
+            : "Matcher trigger skipped because matcher configuration is missing or the request failed",
+          matcher: response,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error("[API] Matcher trigger error:", error);
         res.status(500).json({
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
@@ -225,6 +268,7 @@ export class JobApiServer {
         console.log(`  POST /api/jobs/search - Search jobs with filters`);
         console.log(`  GET /api/stats - Get database statistics`);
         console.log(`  POST /api/jobs/refresh - Manually trigger job refresh`);
+        console.log(`  POST /api/matcher/trigger - Manually trigger matcher for recent scraped jobs`);
         console.log(`  GET /api/skills - Get all available skills`);
 
         // Start the scheduler

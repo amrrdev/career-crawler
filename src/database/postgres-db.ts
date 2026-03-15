@@ -28,40 +28,66 @@ export class PostgresDatabase {
 
     const enablePgcrypto = `CREATE EXTENSION IF NOT EXISTS "pgcrypto";`;
 
-    const fixSkillsTable = `ALTER TABLE skills ALTER COLUMN id DROP DEFAULT, ALTER COLUMN id SET DEFAULT gen_random_uuid(), ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP, ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;`;
+    const createJobTypeEnum = `
+      DO $$
+      BEGIN
+        CREATE TYPE "JobTypeEnum" AS ENUM ('FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE', 'INTERNSHIP');
+      EXCEPTION
+        WHEN duplicate_object THEN NULL;
+      END $$;
+    `;
 
-    const dropScrapedJobsTable = `DROP TABLE IF EXISTS scraped_job_skills; DROP TABLE IF EXISTS scraped_jobs;`;
+    const fixSkillsTable = `
+      ALTER TABLE IF EXISTS skills
+      ALTER COLUMN id SET DEFAULT gen_random_uuid(),
+      ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
+      ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+    `;
 
     const createScrapedJobsTable = `
-      CREATE TABLE scraped_jobs (
+      CREATE TABLE IF NOT EXISTS scraped_jobs (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        url VARCHAR(500) UNIQUE NOT NULL,
-        source VARCHAR(100) NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        company_name VARCHAR(255) NOT NULL,
-        location VARCHAR(255),
+        url TEXT UNIQUE NOT NULL,
+        source TEXT NOT NULL,
+        title TEXT NOT NULL,
+        company_name TEXT NOT NULL,
+        location TEXT,
         description TEXT,
-        salary VARCHAR(255),
-        job_type VARCHAR(50),
-        posted_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        salary TEXT,
+        job_type "JobTypeEnum",
+        posted_at TIMESTAMP(3),
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
     `;
 
     const createScrapedJobSkillsTable = `
-      CREATE TABLE scraped_job_skills (
+      CREATE TABLE IF NOT EXISTS scraped_job_skills (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        job_id UUID REFERENCES scraped_jobs(id) ON DELETE CASCADE,
-        skill_id UUID REFERENCES skills(id) ON DELETE CASCADE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        job_id UUID NOT NULL REFERENCES scraped_jobs(id) ON DELETE CASCADE,
+        skill_id UUID NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
+        created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(job_id, skill_id)
       );
+    `;
+
+    const fixScrapedJobsTable = `
+      ALTER TABLE IF EXISTS scraped_jobs
+      ALTER COLUMN id SET DEFAULT gen_random_uuid(),
+      ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP,
+      ALTER COLUMN updated_at SET DEFAULT CURRENT_TIMESTAMP;
+    `;
+
+    const fixScrapedJobSkillsTable = `
+      ALTER TABLE IF EXISTS scraped_job_skills
+      ALTER COLUMN id SET DEFAULT gen_random_uuid(),
+      ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP;
     `;
 
     const createIndexes = `
       CREATE INDEX IF NOT EXISTS idx_scraped_jobs_source ON scraped_jobs(source);
       CREATE INDEX IF NOT EXISTS idx_scraped_jobs_company_name ON scraped_jobs(company_name);
+      CREATE INDEX IF NOT EXISTS idx_scraped_jobs_posted_at ON scraped_jobs(posted_at);
       CREATE INDEX IF NOT EXISTS idx_scraped_job_skills_job_id ON scraped_job_skills(job_id);
       CREATE INDEX IF NOT EXISTS idx_scraped_job_skills_skill_id ON scraped_job_skills(skill_id);
     `;
@@ -70,10 +96,12 @@ export class PostgresDatabase {
     try {
       await client.query("BEGIN");
       await client.query(enablePgcrypto);
+      await client.query(createJobTypeEnum);
       await client.query(fixSkillsTable);
-      await client.query(dropScrapedJobsTable);
       await client.query(createScrapedJobsTable);
       await client.query(createScrapedJobSkillsTable);
+      await client.query(fixScrapedJobsTable);
+      await client.query(fixScrapedJobSkillsTable);
       await client.query(createIndexes);
       await client.query("COMMIT");
       this.isInitialized = true;
