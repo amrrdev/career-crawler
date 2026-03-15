@@ -32,7 +32,7 @@ export class AntiDetectionManager {
   private activeBrowsers: number = 0;
   private readonly MAX_CONCURRENT_BROWSERS = 2; // Limit concurrent browsers
   private browserQueue: Promise<void> = Promise.resolve(); // Sequential browser operations
-  private readonly PROTOCOL_TIMEOUT_MS = 120000;
+  private readonly PROTOCOL_TIMEOUT_MS = 180000;
   private readonly NAVIGATION_TIMEOUT_MS = 90000;
   private readonly PAGE_OPERATION_TIMEOUT_MS = 30000;
 
@@ -281,7 +281,7 @@ export class AntiDetectionManager {
           // Wait if too many browsers are active
           while (this.activeBrowsers >= this.MAX_CONCURRENT_BROWSERS) {
             console.log(
-              `⏳ Waiting for browser slot (${this.activeBrowsers}/${this.MAX_CONCURRENT_BROWSERS} active)...`
+              `⏳ Waiting for browser slot (${this.activeBrowsers}/${this.MAX_CONCURRENT_BROWSERS} active)...`,
             );
             await this.sleep(2000);
           }
@@ -292,7 +292,7 @@ export class AntiDetectionManager {
             browser = await puppeteerExtra.launch({
               headless: "new",
               defaultViewport: session.viewport,
-              protocolTimeout: 60000, // Increase timeout to 60 seconds
+              protocolTimeout: this.PROTOCOL_TIMEOUT_MS,
               args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
@@ -318,6 +318,8 @@ export class AntiDetectionManager {
         }
 
         page = await browser.newPage();
+        page.setDefaultNavigationTimeout(this.NAVIGATION_TIMEOUT_MS);
+        page.setDefaultTimeout(this.PAGE_OPERATION_TIMEOUT_MS);
         await page.setViewport(session.viewport);
         await page.setUserAgent(session.userAgent);
 
@@ -355,7 +357,7 @@ export class AntiDetectionManager {
               name: "indeed_rcc",
               value: "CTK",
               domain: ".indeed.com",
-            }
+            },
           );
         }
 
@@ -380,7 +382,7 @@ export class AntiDetectionManager {
           } catch (error) {
             if (error instanceof Error && error.message.includes("Timeout") && gotoRetries > 0) {
               console.warn(
-                `Navigation timeout for ${url}, retrying... (${gotoRetries} retries left)`
+                `Navigation timeout for ${url}, retrying... (${gotoRetries} retries left)`,
               );
               gotoRetries--;
               await this.sleep(2000);
