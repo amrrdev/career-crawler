@@ -1,0 +1,17 @@
+services:
+  job-posting-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: job-posting-app
+    ports:
+      - "3010:3010"
+    environment:
+      PORT: 3010
+      BYPASS_CACHE: "false"
+      SCHEDULER_CRON: ${SCHEDULER_CRON:-0 * * * *}
+      MATCHER_BASE_URL: ${MATCHER_BASE_URL:-http://host.docker.internal:8000}
+      DATABASE_URL: ${DATABASE_URL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

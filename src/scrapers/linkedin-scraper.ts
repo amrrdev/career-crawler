@@ -163,23 +163,17 @@ export class LinkedInScraper extends BaseScraper {
         "node.js developer",
       ];
       const locations = [
-        "Remote",
+        "Egypt",
         "United States",
         "United Kingdom",
         "Canada",
-        "Germany",
-        "Australia",
-        "Netherlands",
-        "France",
-        "Egypt",
-        "Saudi Arabia",
         "United Arab Emirates",
-        "Qatar",
+        "Remote",
       ];
 
       const shuffledLocations = [...locations].sort(() => Math.random() - 0.5);
       const shuffledTerms = [...searchTerms].sort(() => Math.random() - 0.5);
-      const locationsToUse = shuffledLocations.slice(0, 4);
+      const locationsToUse = shuffledLocations.slice(0, 6);
 
       let searchCount = 0;
       const maxSearches = 10;

@@ -15,9 +15,9 @@ export class JobAggregator {
   constructor(connectionString?: string, bypassCache: boolean = false) {
     this.database = new PostgresDatabase(connectionString);
     this.scrapers = [
-      // new LinkedInScraper(bypassCache),
+      new LinkedInScraper(bypassCache),
       // new GlassdoorScraper(bypassCache),
-      new BaytScraper(bypassCache),
+      // new BaytScraper(bypassCache),
       // new WuzzufScraper(bypassCache),
       // new IndeedScraper(bypassCache),
     ];

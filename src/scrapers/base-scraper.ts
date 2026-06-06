@@ -2,6 +2,7 @@ import axios, { AxiosResponse } from "axios";
 import * as cheerio from "cheerio";
 import { Job, ScrapingResult } from "../types/job.types";
 import { createHash } from "crypto";
+import { enhanceJobSkills } from "../skills";
 
 export abstract class BaseScraper {
   protected userAgent =
@@ -514,25 +515,24 @@ export abstract class BaseScraper {
     salary?: string;
     postedDate?: Date;
   }): Job {
-    // Extract skills from both title and description for comprehensive coverage
     const titleSkills = this.extractSkillsFromText(data.title);
     const descriptionSkills = this.extractSkillsFromText(data.description);
     const companySkills = this.extractSkillsFromText(data.company);
 
-    // Combine all skills and remove duplicates
-    const allSkills = [...new Set([...titleSkills, ...descriptionSkills, ...companySkills])];
+    const extractedSkills = [...new Set([...titleSkills, ...descriptionSkills, ...companySkills])];
+
+    const { finalSkills } = enhanceJobSkills(data.title, extractedSkills);
 
     const jobType = this.determineJobType(`${data.title} ${data.description}`);
 
     let cleanedLocation = this.cleanText(data.location);
     if (jobType === "remote") {
       cleanedLocation = cleanedLocation.replace(/\bremote\b/gi, "").trim();
-      // Clean up leading commas or other separators if location becomes empty
       if (cleanedLocation.startsWith(",") || cleanedLocation.startsWith("-")) {
         cleanedLocation = cleanedLocation.substring(1).trim();
       }
       if (cleanedLocation === "") {
-        cleanedLocation = "Remote"; // Default to remote if nothing is left
+        cleanedLocation = "Remote";
       }
     }
 
@@ -543,7 +543,7 @@ export abstract class BaseScraper {
       location: cleanedLocation,
       description: this.cleanText(data.description),
       url: data.url,
-      skills: allSkills,
+      skills: finalSkills,
       jobType,
       source: this.sourceName,
       postedDate: data.postedDate || new Date(),

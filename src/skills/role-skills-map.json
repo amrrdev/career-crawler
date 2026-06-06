@@ -1,0 +1,137 @@
+{
+  "frontend": {
+    "junior": ["HTML", "CSS", "JavaScript", "Git", "DOM", "Responsive Design", "Chrome DevTools"],
+    "mid": ["TypeScript", "React", "Vue.js", "Angular", "Sass", "Webpack", "Redux", "REST API", "Figma"],
+    "senior": ["Next.js", "GraphQL", "Server-Side Rendering", "Performance Optimization", "WebSockets", "Testing", "Design Systems", "Micro-frontends", "WebAssembly"]
+  },
+  "backend": {
+    "junior": ["Git", "REST API", "SQL", "HTTP", "JSON", "Authentication", "Validation"],
+    "mid": ["Node.js", "Express", "Python", "Django", "Flask", "PostgreSQL", "MongoDB", "Redis", "Docker", "Authentication", "Caching", "API Design"],
+    "senior": ["Microservices", "Message Queues", "GraphQL", "gRPC", "Kubernetes", "Event-Driven Architecture", "CQRS", "Saga Pattern", "API Gateway", "Service Mesh", "Observability"]
+  },
+  "fullstack": {
+    "junior": ["HTML", "CSS", "JavaScript", "Git", "SQL", "REST API", "DOM", "Responsive Design"],
+    "mid": ["TypeScript", "React", "Vue.js", "Node.js", "Express", "PostgreSQL", "MongoDB", "Docker", "Git", "REST API", "Authentication", "Deployment"],
+    "senior": ["Next.js", "GraphQL", "Microservices", "Kubernetes", "Redis", "WebSockets", "CI/CD", "Testing", "Performance Optimization", "Server-Side Rendering", "Event-Driven Architecture"]
+  },
+  "mobile": {
+    "junior": ["Git", "REST API", "JSON", "HTTP", "Mobile UI Principles"],
+    "mid": ["React Native", "Flutter", "iOS Development", "Android Development", "TypeScript", "JavaScript", "State Management", "Navigation", "API Integration"],
+    "senior": ["Native Modules", "Performance Optimization", "App Store Deployment", "CI/CD for Mobile", "Push Notifications", "Offline-First Architecture", "Deep Linking", "Mobile Security"]
+  },
+  "devops": {
+    "junior": ["Git", "Linux", "Docker", "Shell Scripting", "CI/CD", "GitHub Actions", "Monitoring"],
+    "mid": ["Kubernetes", "Terraform", "Ansible", "Jenkins", "AWS", "Azure", "Google Cloud", "Prometheus", "Grafana", "ELK Stack", "Container Orchestration"],
+    "senior": ["Service Mesh", "Istio", "Linkerd", "Observability", "Chaos Engineering", "GitOps", "FinOps", "Security Scanning", "Kubernetes Operators", "Custom Operators", "Multi-Cloud", "Disaster Recovery"]
+  },
+  "qa": {
+    "junior": ["Git", "Test Cases", "Bug Reporting", "TestRail", "JIRA", "Regression Testing"],
+    "mid": ["Selenium", "Cypress", "Playwright", "Jest", "Mocha", "Chai", "API Testing", "Postman", "SQL", "CI/CD", "Test Automation"],
+    "senior": ["Test Strategy", "Performance Testing", "Security Testing", "Automated Framework Design", "BDD", "Selenium Grid", "Mobile Testing", "Visual Regression", "Test Data Management", "Quality Metrics"]
+  },
+  "data": {
+    "junior": ["SQL", "Excel", "Python", "Git", "Data Cleaning", "ETL", "JSON", "CSV"],
+    "mid": ["PostgreSQL", "MySQL", "MongoDB", "Pandas", "NumPy", "ETL Pipelines", "Data Warehousing", "Tableau", "Power BI", "Apache Airflow", "SQL Optimization"],
+    "senior": ["Spark", "Kafka", "Big Data", "Data Lake", "Data Mesh", "Machine Learning", "Feature Engineering", "Real-Time Analytics", "dbt", "Data Governance", "Data Quality"]
+  },
+  "data-science": {
+    "junior": ["Python", "SQL", "Pandas", "NumPy", "Git", "Statistics", "Jupyter", "Data Visualization"],
+    "mid": ["Scikit-learn", "TensorFlow", "PyTorch", "Data Cleaning", "Feature Engineering", "Model Evaluation", "A/B Testing", "SQL", "Pipelines"],
+    "senior": ["Deep Learning", "NLP", "Computer Vision", "MLOps", "Model Deployment", "Feature Store", "XGBoost", "Ray", "Distributed Training", "Research", "Statistics"]
+  },
+  "ml": {
+    "junior": ["Python", "Machine Learning", "Scikit-learn", "Pandas", "NumPy", "Git", "Jupyter", "Statistics"],
+    "mid": ["TensorFlow", "PyTorch", "Keras", "Feature Engineering", "Model Training", "Hyperparameter Tuning", "Transfer Learning", "ML Pipelines"],
+    "senior": ["Deep Learning", "NLP", "Computer Vision", "MLOps", "Model Serving", "Distributed Training", "AutoML", "Reinforcement Learning", "Ray", "ONNX", "Model Monitoring", "Explainability"]
+  },
+  "security": {
+    "junior": ["Git", "Linux", "Networking", "Security Fundamentals", "OWASP", "SQL Injection", "XSS"],
+    "mid": ["Penetration Testing", "SIEM", "Firewalls", "IDS/IPS", "Encryption", "Identity Management", "Compliance", "Threat Modeling", "Security Audits"],
+    "senior": ["Zero Trust", "DevSecOps", "Threat Intelligence", "Incident Response", "Security Architecture", "Cloud Security", "Container Security", "Cryptography", "Risk Management", "Security Operations"]
+  },
+  "dba": {
+    "junior": ["SQL", "MySQL", "PostgreSQL", "Database Fundamentals", "Indexing", "Backup", "Git"],
+    "mid": ["MongoDB", "Redis", "SQL Server", "Oracle", "Performance Tuning", "Replication", "Failover", "Migration", "Query Optimization"],
+    "senior": ["Database Architecture", "Sharding", "Data Partitioning", "NewSQL", "Time-Series Databases", "Data Governance", "Disaster Recovery", "Multi-Region Deployment", "Advanced Replication", "Database Security"]
+  },
+  "cloud": {
+    "junior": ["AWS", "Azure", "Google Cloud", "Linux", "Git", "Docker", "Networking Basics", "IAM"],
+    "mid": ["EC2", "S3", "RDS", "Lambda", "Azure Functions", "GKE", "EKS", "VPC", "CloudFormation", "Terraform", "Cost Optimization"],
+    "senior": ["Multi-Cloud", "Serverless Architecture", "Cloud Security", "FinOps", "Container Services", "Event-Driven Architecture", "Edge Computing", "Cloud Migration", "Disaster Recovery", "Compliance"]
+  },
+  "embedded": {
+    "junior": ["C", "C++", "Linux", "RTOS", "Git", "Microcontrollers", "GPIO", "UART", "I2C", "SPI"],
+    "mid": ["Embedded Linux", "Arm Cortex", "FreeRTOS", "Device Drivers", "Bootloaders", "Firmware Debugging", "RTOS", "Memory Management"],
+    "senior": ["Real-Time Systems", "Safety-Critical", "Bare Metal", "Bluetooth", "Zigbee", "OTA Updates", "Power Optimization", "Security", "ISO 26262", "MISRA", "Model-Based Design"]
+  },
+  "blockchain": {
+    "junior": ["Git", "Solidity", "Ethereum", "Smart Contracts", "Blockchain Fundamentals", "Web3"],
+    "mid": ["Web3.js", "Ethers.js", "IPFS", "DeFi", "NFT Standards", "Truffle", "Hardhat", "Polygon", "Layer 2"],
+    "senior": ["Consensus Mechanisms", "Zero-Knowledge Proofs", "Layer 1 Protocols", "Cross-Chain", "DAO Governance", "Cryptoeconomics", "Formal Verification", "Smart Contract Security", "Performance Optimization"]
+  },
+  "game-dev": {
+    "junior": ["C++", "C#", "Unity", "Unreal Engine", "Git", "Game Loop", "Physics", "Collision Detection"],
+    "mid": ["Game Design", "Shader Programming", "Level Design", "AI for Games", "Networking", "Animation", "Procedural Generation", "Godot"],
+    "senior": ["Engine Development", "Performance Optimization", "Console Development", "VR/AR", "Multiplayer Architecture", "Physics Engines", "Audio Systems", "Memory Management", "Platform-Specific Optimization"]
+  },
+  "ar-vr": {
+    "junior": ["Unity", "Unreal Engine", "3D Graphics", "Git", "Blender", "Shader Basics"],
+    "mid": ["ARKit", "ARCore", "Oculus SDK", "WebXR", "Three.js", "Vuforia", "Spatial Computing", "Gesture Recognition"],
+    "senior": ["Mixed Reality", "Photogrammetry", "Real-Time Rendering", "Haptic Feedback", "Eye Tracking", "6DoF", "SLAM", "Point Cloud Processing", "Hardware Integration"]
+  },
+  "network": {
+    "junior": ["TCP/IP", "DNS", "DHCP", "HTTP", "Networking", "Subnetting", "Cisco", "Git"],
+    "mid": ["BGP", "OSPF", "VLAN", "VPN", "Firewalls", "Load Balancers", "SDN", "NAC", "Network Monitoring"],
+    "senior": ["Network Architecture", "SD-WAN", "Network Automation", "Zero Trust Network", "Multi-Region", "Network Security", "Programmable Networks", "Network Observability", "SASE"]
+  },
+  "systems": {
+    "junior": ["C", "C++", "Rust", "Linux", "Git", "Memory Management", "Pointers", "System Calls"],
+    "mid": ["Operating Systems", "Concurrency", "Multi-threading", "IPC", "File Systems", "Distributed Systems", "gRPC", "Protocol Buffers"],
+    "senior": ["Kernel Development", "File Systems", "Network Stack", "Distributed Computing", "Consensus Algorithms", "Fault Tolerance", "Real-Time Systems", "WASM", "BPF", "EBPF"]
+  },
+  "ui-ux": {
+    "junior": ["Figma", "Sketch", "Adobe XD", "Prototyping", "User Research", "Wireframing", "Git"],
+    "mid": ["Design Systems", "Interaction Design", "Information Architecture", "A/B Testing", "Usability Testing", "CSS", "HTML", "User Personas"],
+    "senior": ["Design Strategy", "Design Operations", "Accessibility", "Inclusive Design", "Service Design", "Design Leadership", "Journey Mapping", "Design Thinking", "ResearchOps"]
+  },
+  "software-architecture": {
+    "junior": ["Git", "Design Patterns", "UML", "Clean Code", "SOLID Principles", "REST API"],
+    "mid": ["Microservices", "CQRS", "Event-Driven", "API Design", "Database Design", "Domain-Driven Design", "Design Documentation"],
+    "senior": ["Architecture Patterns", "Strategic Design", "Technical Leadership", "Architecture Decision Records", "Platform Architecture", "Evolutionary Architecture", "Architecture Reviews", "Risk Assessment"]
+  },
+  "product": {
+    "junior": ["JIRA", "Product Management", "User Stories", "Agile", "Stakeholder Management", "Git"],
+    "mid": ["Roadmapping", "Prioritization", "A/B Testing", "Market Research", "Competitive Analysis", "SQL", "Product Analytics"],
+    "senior": ["Product Strategy", "OKRs", "Product-Led Growth", "Platform Strategy", "Business Strategy", "Executive Alignment", "Innovation", "Portfolio Management"]
+  },
+  "technical-writer": {
+    "junior": ["Markdown", "Git", "Documentation", "JIRA", "Confluence", "Technical Writing"],
+    "mid": ["API Documentation", "Swagger", "OpenAPI", "GitBook", "DITA", "Information Architecture", "Content Management"],
+    "senior": ["Docs-as-Code", "Developer Experience", "Content Strategy", "Knowledge Management", "UX Writing", "Documentation Architecture", "Style Guides", "Standards Compliance"]
+  },
+  "sales-engineer": {
+    "junior": ["Git", "Demo Skills", "CRM", "Product Knowledge", "Technical Sales", "Presentation"],
+    "mid": ["Solution Architecture", "Technical Discovery", "POC Development", "Integration Knowledge", "API Design", "Objection Handling"],
+    "senior": ["Pre-Sales Strategy", "Complex Solutions", "Executive Presentations", "Partner Ecosystems", "Revenue Growth", "Technical Leadership", "Product Feedback Loop"]
+  },
+  "site-reliability": {
+    "junior": ["Linux", "Git", "Python", "Monitoring", "Alerting", "Incident Management", "Runbooks"],
+    "mid": ["SLO", "SLI", "Error Budgets", "Kubernetes", "Prometheus", "Grafana", "Log Analysis", "Postmortems", "Chaos Engineering"],
+    "senior": ["Reliability Engineering", "Capacity Planning", "FinOps", "Disaster Recovery", "Zero Downtime", "Architecture for Reliability", "SRE Culture", "Toil Reduction", "Observability"]
+  },
+  "platform": {
+    "junior": ["Git", "Linux", "Docker", "Kubernetes", "CI/CD", "Infrastructure", "Networking"],
+    "mid": ["Terraform", "Helm", "GitOps", "Service Catalog", "Internal Developer Platform", "ArgoCD", "Crossplane", "Backstage"],
+    "senior": ["Platform Engineering", "Developer Experience", "Golden Paths", "Self-Service", "Multi-Tenant", "Platform Strategy", "Ecosystem Design", "Observability"]
+  },
+  "analytics": {
+    "junior": ["SQL", "Excel", "Python", "Data Visualization", "Git", "Statistics", "Google Analytics"],
+    "mid": ["Tableau", "Power BI", "Looker", "Pandas", "ETL", "A/B Testing", "Funnel Analysis", "Cohort Analysis"],
+    "senior": ["Predictive Analytics", "Causal Inference", "Experimentation", "Data Science", "Machine Learning", "Data Governance", "Analytics Engineering", "Reverse ETL"]
+  },
+  "growth": {
+    "junior": ["SEO", "Content Marketing", "Social Media", "Git", "A/B Testing", "Analytics", "CRO"],
+    "mid": ["Growth Hacking", "Funnel Optimization", "User Acquisition", "Retention", "Referral Programs", "Product-Led Growth", "SQL", "Marketing Automation"],
+    "senior": ["Growth Strategy", "Platform Growth", "Network Effects", "Marketplace Dynamics", "Viral Growth", "Experiment Platform", "Data-Driven Culture", "Innovation"]
+  }
+}
